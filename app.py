@@ -7,19 +7,20 @@ from datetime import datetime
 # --- RPG CONFIGURATION ---
 st.set_page_config(page_title="Shinra Ops Dashboard", layout="wide")
 
-# This CSS forces the image containers to be identical in size
+# HARD RESET CSS: Forces the images to stay small no matter what
 st.markdown("""
     <style>
-    div[data-testid="stImage"] > img {
-        height: 120px;
-        width: 120px;
-        object-fit: contain;
-        display: block;
+    /* Target the image specifically to prevent container bloat */
+    div[data-testid="stImage"] img {
+        max-height: 150px !important;
+        width: auto !important;
         margin-left: auto;
         margin-right: auto;
+        display: block;
     }
-    div[data-testid="stMetricValue"] {
-        font-size: 24px;
+    /* Reduce padding in columns to tighten the layout */
+    div[data-testid="column"] {
+        padding: 5px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -79,8 +80,8 @@ with tab1:
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
-                # Using the CSS class defined above
-                st.image(AVATARS.get(name))
+                # Using a manual width here to help the CSS clamp it
+                st.image(AVATARS.get(name), width=100)
                 st.markdown(f"<h3 style='text-align: center; margin-bottom: 0;'>{name}</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center; color: gray; margin-top: 0;'>{res['Rank']}</p>", unsafe_allow_html=True)
                 
