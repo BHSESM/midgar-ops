@@ -7,52 +7,19 @@ from datetime import datetime
 # --- RPG CONFIGURATION ---
 st.set_page_config(page_title="Shinra Ops Dashboard", layout="wide")
 
+# CSS: This ONLY touches the image size and the metric font to keep it clean
 st.markdown("""
     <style>
-    /* Force images to stay small and centered */
     div[data-testid="stImage"] img {
-        max-height: 110px !important;
+        max-height: 120px !important;
         width: auto !important;
         margin-left: auto;
         margin-right: auto;
         display: block;
     }
-    
-    /* The Unified Card: This replaces the ghost boxes from image_9388db.png */
-    .shinra-card {
-        border: 1px solid #d3d3d3;
-        border-radius: 12px;
-        padding: 20px;
-        min-height: 520px; /* Ensures all cards in a row are identical height */
-        background-color: white;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-        margin-bottom: 10px;
-    }
-    
-    .poison-card {
-        border: 2px solid #ff4b4b !important;
-        background-color: rgba(255, 75, 75, 0.05) !important;
-        border-radius: 12px;
-        padding: 20px;
-        min-height: 520px;
-        box-shadow: 0px 0px 15px rgba(255, 75, 75, 0.2);
-        margin-bottom: 10px;
-    }
-
-    .character-header {
-        height: 90px; 
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        text-align: center;
-        margin-top: 10px;
-    }
-    
-    .status-box {
-        height: 25px;
-        color: #00ff00;
-        font-weight: bold;
-        font-size: 0.9em;
+    /* This centers the Level and GIL metrics properly */
+    [data-testid="stMetricValue"] {
+        font-size: 24px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -91,10 +58,12 @@ def get_stats(stats):
     weight = stats.get("weight", 1.0)
     total_earned = round((exp / weight)**0.9) if exp > 0 else 0
     current_gil = total_earned - stats.get("spent", 0)
+    
     status = []
     if stats["ans"] >= 100: status.append("⚡ Haste")
     if stats["awol"] > 15: status.append("🐌 Slow")
     if hp_pct < 0.20: status.append("🤢 Poison")
+    
     return {"Level": level, "Rank": rank, "HP": f"{current_hp}/{max_hp}", "HP_Pct": hp_pct, "GIL": current_gil, "EXP": exp, "Status": status}
 
 if "master_data" not in st.session_state:
@@ -108,31 +77,31 @@ with tabs[0]:
     cols = st.columns(3)
     for i, (name, stats) in enumerate(st.session_state.master_data.items()):
         res = get_stats(stats)
-        is_poisoned = "🤢 Poison" in res["Status"]
-        card_class = "poison-card" if is_poisoned else "shinra-card"
         
         with cols[i % 3]:
-            # This single div now holds everything properly
-            st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
-            
-            st.image(AVATARS.get(name), width=100)
-            
-            st.markdown(f"""
-                <div class="character-header">
-                    <h3 style='margin: 0; text-align: center;'>{name}</h3>
-                    <div class="status-box">{" ".join(res["Status"])}</div>
-                </div>
-                <p style='text-align: center; color: gray; margin-top: 0;'>{res['Rank']}</p>
-            """, unsafe_allow_html=True)
-            
-            st.write(f"❤️ HP: {res['HP']}")
-            st.progress(res["HP_Pct"])
-            
-            c1, c2 = st.columns(2)
-            c1.metric("Level", res["Level"])
-            c2.metric("GIL", f"💰 {res['GIL']}")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+            # Native Streamlit border container - No more ghost boxes!
+            with st.container(border=True):
+                st.image(AVATARS.get(name))
+                
+                # Header Section
+                st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
+                
+                # Status Alignment: Prints status OR a blank space to keep height uniform
+                if res["Status"]:
+                    st.markdown(f"<center><b style='color:#00ff00;'>{' '.join(res['Status'])}</b></center>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<center><br></center>", unsafe_allow_html=True) # Blank line for alignment
+                
+                st.markdown(f"<center><small>{res['Rank']}</small></center>", unsafe_allow_html=True)
+                
+                # Vitality Section
+                st.write(f"❤️ HP: {res['HP']}")
+                st.progress(res["HP_Pct"])
+                
+                # Economy Section
+                c1, c2 = st.columns(2)
+                c1.metric("Level", res["Level"])
+                c2.metric("GIL", f"💰 {res['GIL']}")
 
 # --- TAB 2: TACTICAL OVERVIEW ---
 with tabs[1]:
