@@ -7,73 +7,100 @@ from datetime import datetime
 # --- RPG CONFIGURATION ---
 st.set_page_config(page_title="Shinra Ops Dashboard", layout="wide")
 
-# --- THE "PRETTY" CSS INJECTION ---
+# --- THE "ULTIMATE WEAPON" CSS INJECTION ---
 st.markdown("""
     <style>
-    /* 1. BACKDROP: Midgar Skyline with Overlay */
+    /* 1. CUSTOM BACKDROP WITH OVERLAY */
     .stApp {
-        background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
-                    url('https://images.alphacoders.com/106/1063301.jpg');
+        background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), 
+                    url('https://github.com/BHSESM/midgar-ops/blob/main/images.jpg?raw=true');
         background-size: cover;
         background-attachment: fixed;
+        background-position: center;
     }
 
-    /* 2. GLASS-MORPHISM CARDS: This makes them look like floating HUDs */
+    /* 2. GLASS-MORPHISM HUD CARDS (Tab 1) */
+    /* Target only the specific vertical blocks that make up our cards */
     div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
-        background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 15px !important;
-        padding: 20px !important;
-        color: white !important;
+        background: rgba(20, 20, 20, 0.75) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(0, 255, 204, 0.3) !important;
+        border-radius: 20px !important;
+        padding: 25px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
     }
 
-    /* 3. NEON TEXT & TITLES */
-    h1, h2, h3, p, span, label {
-        color: #e0e0e0 !important;
-        text-shadow: 1px 1px 2px black;
+    /* 3. SHINRA NEON THEME */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #f0f0f0 !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
     }
 
-    /* 4. MTD STATUS COLOR (Shinra Green) */
     .status-haste {
         color: #00ffcc !important;
-        text-shadow: 0 0 10px #00ffcc;
+        text-shadow: 0 0 15px #00ffcc;
         font-weight: bold;
+        letter-spacing: 1px;
     }
     
     .status-poison {
         color: #ff4b4b !important;
-        text-shadow: 0 0 10px #ff4b4b;
+        text-shadow: 0 0 15px #ff4b4b;
         font-weight: bold;
     }
 
-    /* 5. FIXING THE TABS: Making them legible on dark background */
+    /* 4. TABS STYLING */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 20px;
-        background-color: rgba(0,0,0,0.3);
-        border-radius: 10px;
-        padding: 10px;
+        background-color: rgba(0, 0, 0, 0.6);
+        border-radius: 15px;
+        padding: 5px 20px;
+        gap: 10px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        color: #888 !important;
+        border: none !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        color: #00ffcc !important;
+        border-bottom: 2px solid #00ffcc !important;
+        background: transparent !important;
     }
 
-    /* 6. IMAGE STYLING */
+    /* 5. AVATAR HOVER EFFECTS */
     div[data-testid="stImage"] img {
-        max-height: 130px !important;
-        width: auto !important;
-        margin-left: auto;
-        margin-right: auto;
-        display: block;
-        filter: drop-shadow(0px 0px 10px rgba(0, 255, 204, 0.3));
+        max-height: 140px !important;
+        filter: drop-shadow(0px 0px 12px rgba(0, 255, 204, 0.5));
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    
+    div[data-testid="stImage"] img:hover {
+        transform: scale(1.1) rotate(2deg);
     }
 
-    /* 7. METRIC STYLING */
+    /* 6. PROGRESS BARS & METRICS */
     [data-testid="stMetricValue"] {
         color: #00ffcc !important;
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: bold;
+    }
+    
+    div[data-testid="stProgress"] > div > div > div > div {
+        background-color: #00ffcc !important;
+    }
+    
+    /* Table Legibility Fix */
+    div[data-testid="stTable"] {
+        background-color: rgba(0,0,0,0.4);
+        border-radius: 10px;
+        padding: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MASTER CONFIG ---
+# --- RPG CONFIGURATION ---
 SHOP_ITEMS = {
     "15 mins extra lunch": 600, "15 mins leave early": 600,
     "10 mins extra lunch": 400, "10 mins leave early": 400,
@@ -126,14 +153,11 @@ with tabs[0]:
     cols = st.columns(3)
     for i, (name, stats) in enumerate(st.session_state.master_data.items()):
         res = get_stats(stats)
-        
         with cols[i % 3]:
             with st.container(border=True):
                 st.image(AVATARS.get(name))
-                
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
                 
-                # Status Logic with Neon Colors
                 if res["Status"]:
                     status_str = ' '.join(res['Status'])
                     color_class = "status-poison" if "Poison" in status_str else "status-haste"
@@ -141,8 +165,7 @@ with tabs[0]:
                 else:
                     st.markdown("<center><br></center>", unsafe_allow_html=True)
                 
-                st.markdown(f"<center><small style='color: #888;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
-                
+                st.markdown(f"<center><small style='color: #bbb;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
                 st.write(f"❤️ Vitality: {res['HP']}")
                 st.progress(res["HP_Pct"])
                 
@@ -156,10 +179,16 @@ with tabs[1]:
     rows = []
     for name, stats in st.session_state.master_data.items():
         res = get_stats(stats)
-        rows.append({"Operative": name, "Level": res["Level"], "Rank": res["Rank"], "HP %": f"{int(res['HP_Pct']*100)}%", "Status": ", ".join(res["Status"]) if res["Status"] else "Healthy", "Calls": stats["in"] + stats["out"], "Tickets": stats["open"] + stats["close"], "Ans Rate": f"{stats['ans']}%", "AWOL": stats["awol"], "Wallet": f"{res['GIL']} GIL"})
-    
-    # Custom styling for the table to make it legible on dark bg
-    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+        rows.append({
+            "Operative": name, "Level": res["Level"], "Rank": res["Rank"], 
+            "HP %": f"{int(res['HP_Pct']*100)}%", 
+            "Status": ", ".join(res["Status"]) if res["Status"] else "Healthy", 
+            "Calls": stats["in"] + stats["out"], 
+            "Tickets": stats["open"] + stats["close"], 
+            "Ans Rate": f"{stats['ans']}%", 
+            "Wallet": f"{res['GIL']} GIL"
+        })
+    st.table(pd.DataFrame(rows))
 
 # --- TAB 3: WALL MARKET ---
 with tabs[2]:
@@ -202,4 +231,5 @@ with tabs[3]:
             st.session_state.master_data[target]["updated"] = datetime.now().strftime("%d/%m %H:%M")
             st.rerun()
         st.divider()
+        st.write("Copy this for your streamlit secrets:")
         st.code(f'staff_json = \'{json.dumps(st.session_state.master_data)}\'')
