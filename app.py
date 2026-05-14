@@ -7,19 +7,68 @@ from datetime import datetime
 # --- RPG CONFIGURATION ---
 st.set_page_config(page_title="Shinra Ops Dashboard", layout="wide")
 
-# CSS: This ONLY touches the image size and the metric font to keep it clean
+# --- THE "PRETTY" CSS INJECTION ---
 st.markdown("""
     <style>
+    /* 1. BACKDROP: Midgar Skyline with Overlay */
+    .stApp {
+        background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
+                    url('https://images.alphacoders.com/106/1063301.jpg');
+        background-size: cover;
+        background-attachment: fixed;
+    }
+
+    /* 2. GLASS-MORPHISM CARDS: This makes them look like floating HUDs */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 15px !important;
+        padding: 20px !important;
+        color: white !important;
+    }
+
+    /* 3. NEON TEXT & TITLES */
+    h1, h2, h3, p, span, label {
+        color: #e0e0e0 !important;
+        text-shadow: 1px 1px 2px black;
+    }
+
+    /* 4. MTD STATUS COLOR (Shinra Green) */
+    .status-haste {
+        color: #00ffcc !important;
+        text-shadow: 0 0 10px #00ffcc;
+        font-weight: bold;
+    }
+    
+    .status-poison {
+        color: #ff4b4b !important;
+        text-shadow: 0 0 10px #ff4b4b;
+        font-weight: bold;
+    }
+
+    /* 5. FIXING THE TABS: Making them legible on dark background */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
+        background-color: rgba(0,0,0,0.3);
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    /* 6. IMAGE STYLING */
     div[data-testid="stImage"] img {
-        max-height: 120px !important;
+        max-height: 130px !important;
         width: auto !important;
         margin-left: auto;
         margin-right: auto;
         display: block;
+        filter: drop-shadow(0px 0px 10px rgba(0, 255, 204, 0.3));
     }
-    /* This centers the Level and GIL metrics properly */
+
+    /* 7. METRIC STYLING */
     [data-testid="stMetricValue"] {
-        font-size: 24px !important;
+        color: #00ffcc !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -79,26 +128,24 @@ with tabs[0]:
         res = get_stats(stats)
         
         with cols[i % 3]:
-            # Native Streamlit border container - No more ghost boxes!
             with st.container(border=True):
                 st.image(AVATARS.get(name))
                 
-                # Header Section
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
                 
-                # Status Alignment: Prints status OR a blank space to keep height uniform
+                # Status Logic with Neon Colors
                 if res["Status"]:
-                    st.markdown(f"<center><b style='color:#00ff00;'>{' '.join(res['Status'])}</b></center>", unsafe_allow_html=True)
+                    status_str = ' '.join(res['Status'])
+                    color_class = "status-poison" if "Poison" in status_str else "status-haste"
+                    st.markdown(f"<center><span class='{color_class}'>{status_str}</span></center>", unsafe_allow_html=True)
                 else:
-                    st.markdown("<center><br></center>", unsafe_allow_html=True) # Blank line for alignment
+                    st.markdown("<center><br></center>", unsafe_allow_html=True)
                 
-                st.markdown(f"<center><small>{res['Rank']}</small></center>", unsafe_allow_html=True)
+                st.markdown(f"<center><small style='color: #888;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
                 
-                # Vitality Section
-                st.write(f"❤️ HP: {res['HP']}")
+                st.write(f"❤️ Vitality: {res['HP']}")
                 st.progress(res["HP_Pct"])
                 
-                # Economy Section
                 c1, c2 = st.columns(2)
                 c1.metric("Level", res["Level"])
                 c2.metric("GIL", f"💰 {res['GIL']}")
@@ -110,7 +157,9 @@ with tabs[1]:
     for name, stats in st.session_state.master_data.items():
         res = get_stats(stats)
         rows.append({"Operative": name, "Level": res["Level"], "Rank": res["Rank"], "HP %": f"{int(res['HP_Pct']*100)}%", "Status": ", ".join(res["Status"]) if res["Status"] else "Healthy", "Calls": stats["in"] + stats["out"], "Tickets": stats["open"] + stats["close"], "Ans Rate": f"{stats['ans']}%", "AWOL": stats["awol"], "Wallet": f"{res['GIL']} GIL"})
-    st.table(pd.DataFrame(rows))
+    
+    # Custom styling for the table to make it legible on dark bg
+    st.dataframe(pd.DataFrame(rows), use_container_width=True)
 
 # --- TAB 3: WALL MARKET ---
 with tabs[2]:
