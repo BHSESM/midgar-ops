@@ -7,12 +7,19 @@ from datetime import datetime
 # --- RPG CONFIGURATION ---
 st.set_page_config(page_title="Shinra Ops Dashboard", layout="wide")
 
-# Center the images with standard CSS injection
+# This CSS forces the image containers to be identical in size
 st.markdown("""
     <style>
-    div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
+    div[data-testid="stImage"] > img {
+        height: 120px;
+        width: 120px;
+        object-fit: contain;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 24px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -72,9 +79,10 @@ with tab1:
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
-                st.image(AVATARS.get(name), width=80)
-                st.markdown(f"<h3 style='text-align: center;'>{name}</h3>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center; color: gray;'>{res['Rank']}</p>", unsafe_allow_html=True)
+                # Using the CSS class defined above
+                st.image(AVATARS.get(name))
+                st.markdown(f"<h3 style='text-align: center; margin-bottom: 0;'>{name}</h3>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align: center; color: gray; margin-top: 0;'>{res['Rank']}</p>", unsafe_allow_html=True)
                 
                 st.write(f"❤️ HP: {res['HP']}")
                 st.progress(res["HP_Pct"])
@@ -91,7 +99,7 @@ with tab2:
     pwd = st.text_input("Enter Admin Password", type="password")
     
     if pwd == "shinra2026":
-        st.success("Welcome back, Director.")
+        st.success("Access Granted.")
         target = st.selectbox("Update Technician", list(st.session_state.master_data.keys()))
         
         col_a, col_b = st.columns(2)
@@ -115,5 +123,5 @@ with tab2:
             
         st.divider()
         st.subheader("Data Saver")
-        st.write("To save these levels permanently, copy this entire block into your Streamlit Cloud Secrets:")
+        st.write("Copy this into your Streamlit Cloud Secrets:")
         st.code(f'staff_json = \'{json.dumps(st.session_state.master_data)}\'')
