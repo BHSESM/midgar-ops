@@ -7,18 +7,17 @@ from datetime import datetime
 # --- RPG CONFIGURATION ---
 st.set_page_config(page_title="Shinra Ops Dashboard", layout="wide")
 
-# Center the images with a bit of custom CSS
+# Center the images with standard CSS injection
 st.markdown("""
     <style>
-    [data-testid="stImage"] {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
+    div[data-testid="stImage"] {
+        display: flex;
+        justify-content: center;
     }
     </style>
-    """, unsafe_url_segments=True)
+    """, unsafe_allow_html=True)
 
-# Corrected RAW GitHub Links for Images
+# RAW GitHub Links for Images
 AVATARS = {
     "Sophie (Yuffie)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Yuffie_Kisaragi.png",
     "Bryan (Cloud)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Cloud_Strife.png",
@@ -73,18 +72,13 @@ with tab1:
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
-                # Standardized smaller image display
                 st.image(AVATARS.get(name), width=80)
-                
-                # Center the header text
                 st.markdown(f"<h3 style='text-align: center;'>{name}</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center; color: gray;'>{res['Rank']}</p>", unsafe_allow_html=True)
                 
-                # Health Bar
                 st.write(f"❤️ HP: {res['HP']}")
                 st.progress(res["HP_Pct"])
                 
-                # Level and GIL metrics
                 c1, c2 = st.columns(2)
                 c1.metric("Level", res["Level"])
                 c2.metric("GIL", f"💰 {res['GIL']}")
