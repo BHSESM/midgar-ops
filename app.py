@@ -30,13 +30,34 @@ st.markdown("""
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
     }
 
-    /* 3. SHINRA NEON THEME */
     h1, h2, h3, p, span, label, .stMarkdown {
         color: #f0f0f0 !important;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
     }
 
-    /* 4. PROGRESS BAR COLORS (Nth-type for dual bars) */
+    /* 3. MINI-STAT RECAP GRID */
+    .mini-stat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 5px;
+        margin: 10px 0;
+        padding: 8px;
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+    }
+    .mini-stat-item {
+        font-size: 0.7rem !important;
+        color: #aaa !important;
+        text-align: center;
+        line-height: 1.2;
+    }
+    .mini-stat-value {
+        display: block;
+        color: #00ffcc !important;
+        font-weight: bold;
+    }
+
+    /* 4. PROGRESS BARS */
     /* HP Bar (Mako Green) */
     div[data-testid="stProgress"]:nth-of-type(1) > div > div > div > div {
         background-color: #00ffcc !important;
@@ -69,7 +90,7 @@ st.markdown("""
 
     /* 7. IMAGE & TABS */
     div[data-testid="stImage"] img {
-        max-height: 140px !important;
+        max-height: 130px !important;
         filter: drop-shadow(0px 0px 12px rgba(0, 255, 204, 0.5));
         transition: transform 0.4s;
     }
@@ -83,7 +104,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- MASTER CONFIG ---
-SHOP_ITEMS = {"15 mins extra lunch": 600, "15 mins leave early": 600, "10 mins extra lunch": 400, "10 mins leave early": 400, "5 mins extra lunch": 200, "5 mins leave early": 200}
+SHOP_ITEMS = {
+    "15 mins extra lunch": 600, 
+    "15 mins leave early": 600, 
+    "10 mins extra lunch": 400, 
+    "10 mins leave early": 400, 
+    "5 mins extra lunch": 200, 
+    "5 mins leave early": 200
+}
 
 AVATARS = {
     "Sophie (Yuffie)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Yuffie_Kisaragi.png",
@@ -124,7 +152,11 @@ def get_stats(stats):
     if stats["awol"] > 15: status.append("🐌 Slow")
     if hp_pct < 0.20: status.append("🤢 Poison")
     
-    return {"Level": level, "Rank": rank, "HP": f"{current_hp}/{max_hp}", "HP_Pct": hp_pct, "EXP_Pct": exp_pct, "GIL": current_gil, "Status": status, "Next": int(next_lvl_base - exp)}
+    return {
+        "Level": level, "Rank": rank, "HP": f"{current_hp}/{max_hp}", 
+        "HP_Pct": hp_pct, "EXP_Pct": exp_pct, "GIL": current_gil, 
+        "Status": status, "Next": int(next_lvl_base - exp)
+    }
 
 def load_data():
     if "staff_json" in st.secrets:
@@ -146,15 +178,30 @@ with tabs[0]:
             with st.container(border=True):
                 st.image(AVATARS.get(name))
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
+                
+                # Mini-Stat Recap Grid
+                st.markdown(f"""
+                    <div class="mini-stat-grid">
+                        <div class="mini-stat-item">IN<span class="mini-stat-value">{stats['in']}</span></div>
+                        <div class="mini-stat-item">OUT<span class="mini-stat-value">{stats['out']}</span></div>
+                        <div class="mini-stat-item">ANS%<span class="mini-stat-value">{stats['ans']}%</span></div>
+                        <div class="mini-stat-item">OPEN<span class="mini-stat-value">{stats['open']}</span></div>
+                        <div class="mini-stat-item">CLOSE<span class="mini-stat-value">{stats['close']}</span></div>
+                        <div class="mini-stat-item">AWOL<span class="mini-stat-value">{stats['awol']}m</span></div>
+                    </div>
+                """, unsafe_allow_html=True)
+
                 if res["Status"]:
                     status_str = ' '.join(res['Status'])
                     color_class = "status-poison" if "Poison" in status_str else "status-haste"
                     st.markdown(f"<center><span class='{color_class}'>{status_str}</span></center>", unsafe_allow_html=True)
                 else: st.markdown("<center><br></center>", unsafe_allow_html=True)
+                
                 st.markdown(f"<center><small style='color: #bbb;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
                 
                 st.write(f"❤️ Vitality (HP)")
                 st.progress(res["HP_Pct"])
+                
                 st.write(f"💠 Next Level: {res['Next']} EXP")
                 st.progress(res["EXP_Pct"])
                 
@@ -168,7 +215,11 @@ with tabs[1]:
     data_list = []
     for name, s in st.session_state.master_data.items():
         r = get_stats(s)
-        data_list.append({"Operative": name, "Inbound": s["in"], "Outbound": s["out"], "Opened": s["open"], "Closed": s["close"], "Ans Rate": s["ans"], "AWOL": s["awol"], "Wallet": f"{r['GIL']} GIL"})
+        data_list.append({
+            "Operative": name, "Inbound": s["in"], "Outbound": s["out"], 
+            "Opened": s["open"], "Closed": s["close"], "Ans Rate": s["ans"], 
+            "AWOL": s["awol"], "Wallet": f"{r['GIL']} GIL"
+        })
     df = pd.DataFrame(data_list)
     st.table(df)
 
@@ -178,11 +229,20 @@ with tabs[1]:
         val = df[metric].max() if high_is_best else df[metric].min()
         winners = df[df[metric] == val]["Operative"].tolist()
         return ", ".join(winners)
+
     a1, a2, a3 = st.columns(3)
     a4, a5, a6 = st.columns(3)
-    metrics = [(a1, "📞 Inbound King/Queen", "Inbound", True), (a2, "☎️ Outbound Ace", "Outbound", True), (a3, "📂 Request Opener", "Opened", True), (a4, "✅ Ticket Crusher", "Closed", True), (a5, "💯 Comms Master", "Ans Rate", True), (a6, "🛡️ Always Ready", "AWOL", False)]
+    metrics = [
+        (a1, "📞 Inbound King/Queen", "Inbound", True), 
+        (a2, "☎️ Outbound Ace", "Outbound", True), 
+        (a3, "📂 Request Opener", "Opened", True), 
+        (a4, "✅ Ticket Crusher", "Closed", True), 
+        (a5, "💯 Comms Master", "Ans Rate", True), 
+        (a6, "🛡️ Always Ready", "AWOL", False)
+    ]
     for col, label, key, high in metrics:
-        with col: st.markdown(f'<div class="award-card"><div class="award-title">{label}</div><div>{get_tops(key, high)}</div></div>', unsafe_allow_html=True)
+        with col: 
+            st.markdown(f'<div class="award-card"><div class="award-title">{label}</div><div>{get_tops(key, high)}</div></div>', unsafe_allow_html=True)
 
 # --- TAB 3: WALL MARKET ---
 with tabs[2]:
@@ -204,7 +264,10 @@ with tabs[2]:
             else: st.error("Insufficient GIL!")
     with col_s2:
         h_name = st.selectbox("View History For:", list(st.session_state.master_data.keys()))
-        for log in st.session_state.master_data[h_name].get("history", []): st.write(log)
+        history = st.session_state.master_data[h_name].get("history", [])
+        if history:
+            for log in history: st.write(log)
+        else: st.write("No transactions found.")
 
 # --- TAB 4: ADMIN ---
 with tabs[3]:
