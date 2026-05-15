@@ -13,7 +13,7 @@ st.markdown("""
     /* 1. CUSTOM BACKDROP WITH OVERLAY */
     .stApp {
         background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), 
-                    url('https://github.com/BHSESM/midgar-ops/blob/main/BG.jpg?raw=true');
+                    url('https://github.com/BHSESM/midgar-ops/blob/main/images.jpg?raw=true');
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
@@ -35,7 +35,23 @@ st.markdown("""
         text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
     }
 
-    /* 3. MINI-STAT RECAP GRID */
+    /* 3. TABLE ALIGNMENT FIX (Resolving image_ebc855.jpg) */
+    div[data-testid="stTable"] table {
+        width: 100% !important;
+    }
+    div[data-testid="stTable"] th {
+        text-align: center !important;
+        color: #00ffcc !important;
+        border-bottom: 1px solid rgba(0, 255, 204, 0.3) !important;
+        padding: 10px !important;
+    }
+    div[data-testid="stTable"] td {
+        text-align: center !important;
+        padding: 10px !important;
+        color: #f0f0f0 !important;
+    }
+
+    /* 4. MINI-STAT RECAP GRID */
     .mini-stat-grid {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -57,17 +73,15 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* 4. PROGRESS BARS */
-    /* HP Bar (Mako Green) */
+    /* 5. PROGRESS BARS */
     div[data-testid="stProgress"]:nth-of-type(1) > div > div > div > div {
         background-color: #00ffcc !important;
     }
-    /* EXP Bar (Materia Blue) */
     div[data-testid="stProgress"]:nth-of-type(2) > div > div > div > div {
         background-color: #0099ff !important;
     }
 
-    /* 5. AWARDS GRID STYLING */
+    /* 6. AWARDS GRID STYLING */
     .award-card {
         background: rgba(0, 255, 204, 0.1);
         border: 1px solid rgba(0, 255, 204, 0.4);
@@ -84,11 +98,11 @@ st.markdown("""
         margin-bottom: 5px;
     }
 
-    /* 6. STATUS STYLING */
+    /* 7. STATUS STYLING */
     .status-haste { color: #00ffcc !important; text-shadow: 0 0 15px #00ffcc; font-weight: bold; }
     .status-poison { color: #ff4b4b !important; text-shadow: 0 0 15px #ff4b4b; font-weight: bold; }
 
-    /* 7. IMAGE & TABS */
+    /* 8. IMAGE & TABS */
     div[data-testid="stImage"] img {
         max-height: 130px !important;
         filter: drop-shadow(0px 0px 12px rgba(0, 255, 204, 0.5));
@@ -129,20 +143,17 @@ def get_stats(stats):
     level = int(math.sqrt(exp / 50))
     rank = TITLES[min(max(level - 1, 0), len(TITLES) - 1)]
     
-    # EXP Logic
     current_lvl_base = 50 * (level**2)
     next_lvl_base = 50 * ((level + 1)**2)
     exp_in_level = exp - current_lvl_base
     exp_needed_total = next_lvl_base - current_lvl_base
     exp_pct = min(1.0, max(0.0, exp_in_level / exp_needed_total)) if exp_needed_total > 0 else 0
     
-    # HP Logic
     max_hp = 10 * (level**2) if level > 0 else 100
     damage = round(((1 - (stats["ans"]/100)) * 800) + (stats["awol"] * 9))
     current_hp = max(0, max_hp - damage)
     hp_pct = current_hp / max_hp if max_hp > 0 else 0
     
-    # Wallet Logic
     weight = stats.get("weight", 1.0)
     total_earned = round((exp / weight)**0.9) if exp > 0 else 0
     current_gil = total_earned - stats.get("spent", 0)
@@ -198,10 +209,8 @@ with tabs[0]:
                 else: st.markdown("<center><br></center>", unsafe_allow_html=True)
                 
                 st.markdown(f"<center><small style='color: #bbb;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
-                
                 st.write(f"❤️ Vitality (HP)")
                 st.progress(res["HP_Pct"])
-                
                 st.write(f"💠 Next Level: {res['Next']} EXP")
                 st.progress(res["EXP_Pct"])
                 
@@ -217,28 +226,33 @@ with tabs[1]:
         r = get_stats(s)
         data_list.append({
             "Operative": name, "Inbound": s["in"], "Outbound": s["out"], 
-            "Opened": s["open"], "Closed": s["close"], "Ans Rate": s["ans"], 
-            "AWOL": s["awol"], "Wallet": f"{r['GIL']} GIL"
+            "Opened": s["open"], "Closed": s["close"], "Ans Rate": f"{s['ans']}%", 
+            "AWOL": f"{s['awol']}m", "Wallet": f"{r['GIL']} GIL"
         })
     df = pd.DataFrame(data_list)
+    # Using st.table for fixed formatting, now controlled by CSS at the top
     st.table(df)
 
     st.divider()
     st.subheader("🏆 Sector 7 Honors")
     def get_tops(metric, high_is_best=True):
-        val = df[metric].max() if high_is_best else df[metric].min()
-        winners = df[df[metric] == val]["Operative"].tolist()
+        # Temp df for logic to handle string formatting in original df
+        logic_list = []
+        for n, s in st.session_state.master_data.items():
+            logic_list.append({"Op": n, "Val": s[metric]})
+        temp_df = pd.DataFrame(logic_list)
+        target_val = temp_df["Val"].max() if high_is_best else temp_df["Val"].min()
+        winners = temp_df[temp_df["Val"] == target_val]["Op"].tolist()
         return ", ".join(winners)
 
-    a1, a2, a3 = st.columns(3)
-    a4, a5, a6 = st.columns(3)
+    a1, a2, a3 = st.columns(3); a4, a5, a6 = st.columns(3)
     metrics = [
-        (a1, "📞 Inbound King/Queen", "Inbound", True), 
-        (a2, "☎️ Outbound Ace", "Outbound", True), 
-        (a3, "📂 Request Opener", "Opened", True), 
-        (a4, "✅ Ticket Crusher", "Closed", True), 
-        (a5, "💯 Comms Master", "Ans Rate", True), 
-        (a6, "🛡️ Always Ready", "AWOL", False)
+        (a1, "📞 Inbound King/Queen", "in", True), 
+        (a2, "☎️ Outbound Ace", "out", True), 
+        (a3, "📂 Request Opener", "open", True), 
+        (a4, "✅ Ticket Crusher", "close", True), 
+        (a5, "💯 Comms Master", "ans", True), 
+        (a6, "🛡️ Always Ready", "awol", False)
     ]
     for col, label, key, high in metrics:
         with col: 
@@ -285,7 +299,6 @@ with tabs[3]:
             s_target["close"] = st.number_input("Closed", value=s_target["close"])
             s_target["awol"] = st.number_input("AWOL Mins", value=s_target["awol"])
         if st.button("Commit Stats to Lifestream"):
-            st.session_state.master_data[target]["updated"] = datetime.now().strftime("%d/%m %H:%M")
             st.rerun()
         st.divider()
         st.code(f"staff_json = '{json.dumps(st.session_state.master_data)}'")
