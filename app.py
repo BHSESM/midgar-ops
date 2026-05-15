@@ -13,7 +13,7 @@ st.markdown("""
     /* 1. CUSTOM BACKDROP WITH OVERLAY */
     .stApp {
         background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), 
-                    url('https://github.com/BHSESM/midgar-ops/blob/main/images.jpg?raw=true');
+                    url('https://github.com/BHSESM/midgar-ops/blob/main/BG.jpg?raw=true');
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
