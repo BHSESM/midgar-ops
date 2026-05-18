@@ -110,7 +110,7 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
-    /* Character Images */
+    /* Character Images (Default MTD Tab Views) */
     div[data-testid="stImage"] img {
         max-height: 135px !important;
         filter: drop-shadow(0px 0px 12px rgba(0, 255, 204, 0.5));
@@ -351,7 +351,6 @@ with tabs[1]:
         st.info(f"🔵 ON TRACK: {total_out} / {goal_out} calls reached.")
     else:
         st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
-    st.caption(f"Progress Index metrics mapping total Outbound volume metrics to team benchmarks securely.")
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Mission 2
@@ -399,13 +398,12 @@ with tabs[1]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB (MASS MULTI-INPUT MATRIX)
+# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB (MASS MULTI-INPUT MATRIX & 2-GRID CARD FEED)
 # =============================================================================
 with tabs[2]:
     st.title("⚡ Daily Tactical Snapshot Node")
     st.write("Mass data grid input module. Type values and hit Tab to breeze down the list out of Excel or manual logs.")
     
-    # Storage dictionaries to receive multi-row entries down the layout loop
     new_answered = {}
     new_pct = {}
     new_outbound = {}
@@ -414,11 +412,9 @@ with tabs[2]:
     
     st.subheader("📝 Universal Active Party Entry Grid")
     
-    # Loop over every team member dynamically to render structured row grids simultaneously
+    # Universal loop for horizontal inputs
     for name in STAFF_NAMES:
         current_vals = st.session_state.daily_snapshot_data[name]
-        
-        # Use columns to cleanly line up entries horizontally on a single line
         r_col0, r_col1, r_col2, r_col3, r_col4, r_col5 = st.columns([1.5, 1, 1, 1, 1, 1])
         
         with r_col0:
@@ -449,48 +445,65 @@ with tabs[2]:
         
     st.divider()
     
-    # --- PREVIEW HUB GENERATOR ROW ---
+    # --- PREVIEW HUB GENERATOR ROW WITH 2-ACROSS LAYOUT & ENHANCED VERTICAL FOOLPROOF STYLING ---
     st.subheader("📸 Teams Live Output Panel Feed")
-    st.write("Scroll down to individual panels to snapshot update cards straight into your Teams channels.")
+    st.write("2-Across structural alignment layout. Cards have expanded vertical heights and enlarged avatar framing elements.")
     
-    # Render all cards back-to-back in an easy-to-crop display stack
-    stack_cols = st.columns(3)
+    # 2-Across grid column split strategy
+    stack_cols = st.columns(2)
     for idx, name in enumerate(STAFF_NAMES):
         active_snap = st.session_state.daily_snapshot_data[name]
         avatar_url = AVATARS.get(name, "")
         
-        with stack_cols[idx % 3]:
+        with stack_cols[idx % 2]:
+            # Increased vertical profile padding, larger avatar specs (85px), higher line-heights, and table sizing
             st.markdown(f"""
-                <div style="background: rgba(20, 20, 20, 0.85); border: 1px solid rgba(0, 255, 204, 0.5); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.9); margin-bottom: 20px;">
-                    <div style="display: flex; align-items: center; margin-bottom: 18px;">
-                        <img src="{avatar_url}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #00ffcc; box-shadow: 0 0 10px rgba(0,255,204,0.6); object-fit: cover; margin-right: 15px;">
+                <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 250px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 25px;">
+                        <img src="{avatar_url}" style="width: 85px; height: 85px; border-radius: 50%; border: 3px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.7); object-fit: cover; margin-right: 22px;">
                         <div>
-                            <h3 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.2rem; text-shadow: 1px 1px 3px #000;">{name}</h3>
-                            <span style="color: #00ffcc; font-size: 0.8rem; font-weight: bold; font-family: monospace;">DAILY RUNTIME MATRIX UPDATE</span>
+                            <h2 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.6rem; font-weight: bold; text-shadow: 2px 2px 4px #000; letter-spacing: 0.5px;">{name}</h2>
+                            <span style="color: #00ffcc; font-size: 0.95rem; font-weight: bold; font-family: monospace; letter-spacing: 1px; text-transform: uppercase;">DAILY RUNTIME MATRIX UPDATE</span>
                         </div>
                     </div>
-                    <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 0.85rem;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 1.0rem;">
                         <thead>
-                            <tr style="background: rgba(0, 255, 204, 0.15); color: #00ffcc; border-bottom: 2px solid rgba(0, 255, 204, 0.3);">
-                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Ans</th>
-                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Rate</th>
-                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Out</th>
-                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Open</th>
-                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Close</th>
+                            <tr style="background: rgba(0, 255, 204, 0.18); color: #00ffcc; border-bottom: 3px solid rgba(0, 255, 204, 0.4); font-weight: bold;">
+                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">Calls Ans</th>
+                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">Answer Rate</th>
+                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">Outbound</th>
+                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">SD Opened</th>
+                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">SD Closed</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr style="font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.3); font-size: 1.05rem;">
-                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['answered']}</td>
-                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['pct']}</td>
-                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['outbound']}</td>
-                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); color: #ff4b4b;">{active_snap['open']}</td>
-                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['close']}</td>
+                            <tr style="font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.4); font-size: 1.35rem;">
+                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['answered']}</td>
+                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['pct']}</td>
+                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['outbound']}</td>
+                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12); color: #ff4b4b;">{active_snap['open']}</td>
+                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['close']}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             """, unsafe_allow_html=True)
+        
+    st.divider()
+    st.subheader("📋 Collective Daily Snapshot Overview")
+    
+    daily_rows_matrix = []
+    for name in STAFF_NAMES:
+        snap_item = st.session_state.daily_snapshot_data[name]
+        daily_rows_matrix.append({
+            "Operative": name,
+            "Calls Answered": snap_item["answered"],
+            "Answer Rate": snap_item["pct"],
+            "Outbound Calls": snap_item["outbound"],
+            "SD Opened": snap_item["open"],
+            "SD Closed": snap_item["close"]
+        })
+    st.table(pd.DataFrame(daily_rows_matrix))
 
 # =============================================================================
 # TAB 4: TACTICAL OVERVIEW
