@@ -234,23 +234,19 @@ def load_data():
     if "staff_json" in st.secrets:
         data = json.loads(st.secrets["staff_json"])
         
-        # Backfill Base Team Metrics
         data.setdefault("team_stats", {
             "success_pct": 0.0, "sla_pct": 0.0,
             "longest_wait": "00:00:00", "avg_queue": "00:00:00"
         })
         
-        # Backfill Clean Volume Stats Layout Structure (Horizontal Mapping Layout)
         if "volume_stats" not in data:
             data["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
             
-        # Backfill Standalone Global Outcomes Array Layout
         if "outcome_stats" not in data:
             data["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
             
         return data
 
-    # Default Fresh Deployment Configuration
     base = {
         name: {
             "in": 0, "out": 0, "open": 0, "close": 0,
@@ -270,7 +266,7 @@ def load_data():
 if "master_data" not in st.session_state:
     st.session_state.master_data = load_data()
 
-# Structural verification loop checks
+# Verification loop for standard operative parameters
 for _name in list(st.session_state.master_data.keys()):
     if _name not in ["team_stats", "volume_stats", "outcome_stats"]:
         st.session_state.master_data[_name].setdefault("days_worked", 0)
@@ -278,7 +274,13 @@ for _name in list(st.session_state.master_data.keys()):
 st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
 st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
 
-STAFF_NAMES = [k for k in st.session_state.master_data.keys() if k not in ["team_stats", "volume_stats", "outcome_stats"]]
+# CRITICAL FIX: Explicitly enforce that key targets MUST contain standard metrics dictionary blocks.
+STAFF_NAMES = [
+    k for k in st.session_state.master_data.keys() 
+    if k not in ["team_stats", "volume_stats", "outcome_stats"] 
+    and isinstance(st.session_state.master_data[k], dict) 
+    and "in" in st.session_state.master_data[k]
+]
 
 # --- TABS DESCRIPTOR HUD ---
 tabs = st.tabs(["⚔️ Active Party", "📜 Missions", "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"])
@@ -343,7 +345,7 @@ with tabs[1]:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Mission 2
-    avg_ans = sum(st.session_state.master_data[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES)
+    avg_ans = sum(st.session_state.master_data[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
     goal_ans = 98.0
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
     st.subheader("🛡️ TEAM MISSION: The Perfect Guard")
@@ -450,6 +452,7 @@ with tabs[2]:
 
     st.subheader("🏆 Sector 7 Honors (Top Performers)")
     def calculate_winners(metric, high_is_best=True):
+        if not STAFF_NAMES: return "None"
         vals = {n: st.session_state.master_data[n][metric] for n in STAFF_NAMES}
         target = max(vals.values()) if high_is_best else min(vals.values())
         return ", ".join(n for n, v in vals.items() if v == target)
@@ -471,26 +474,21 @@ with tabs[2]:
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 4: MAKO VOLUME HEATMAP (CORRECTED EXCEL REPLICA LAYOUT)
+# TAB 4: MAKO VOLUME HEATMAP 
 # =============================================================================
 with tabs[3]:
     st.title("🔥 Mako Reactor Traffic Flow")
     
-    # 1. HORIZONTAL TRAFFIC VOLUMES MAP (Matches image_8bf9c6.png layout)
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = st.session_state.master_data["volume_stats"]
-    
-    # Reshaping dictionary map into standard clean horizontal array row matrix
     horizontal_volume_df = pd.DataFrame([v_stats], columns=TIME_SLOTS)
     st.table(horizontal_volume_df)
     
     st.divider()
     
-    # 2. STANDALONE GLOBAL OUTCOMES ROW MATRIX (Matches image_8bf9ab.png layout)
     st.subheader("📊 Global Outcome Percentages")
-    st.caption("Excel calculated outcome averages. Cells containing raw string markers handle divide-by-zero bounds safely.")
+    st.caption("Excel calculated outcome averages. Safe execution fallback prevents crash loops on string parameters.")
     o_stats = st.session_state.master_data["outcome_stats"]
-    
     horizontal_outcome_df = pd.DataFrame([o_stats], columns=OUTCOME_KEYS)
     st.table(horizontal_outcome_df)
 
@@ -594,13 +592,12 @@ with tabs[5]:
                     "longest_wait": val_longest_wait, "avg_queue": val_avg_queue
                 })
                 st.rerun()
-            else: st.error("Cannot preserve configuration. Fix the layout time matrix format criteria errors above.")
+            else: st.error("Cannot preserve configuration. Fix execution formatting parameter issues.")
 
         st.divider()
 
-        # --- PANEL MODULE 3: HORIZONTAL HIGHWAY TRAFFIC DESCRIPTORS ---
+        # --- PANEL MODULE 3: TRAFFIC FLOW VARIABLES ---
         st.subheader("🔥 Module 3: Update Mako Heatmap Flow Matrices")
-        
         adm_hm_col1, adm_hm_col2 = st.columns(2)
         
         with adm_hm_col1:
@@ -610,19 +607,17 @@ with tabs[5]:
             
             if st.button("Commit Volume Interval Entry"):
                 st.session_state.master_data["volume_stats"][target_slot] = val_slot_vol
-                st.success(f"Volume metric parameters saved for interval window: [{target_slot}].")
+                st.success(f"Volume parameters saved for: [{target_slot}].")
                 st.rerun()
 
         with adm_hm_col2:
             st.write("**Part B: Update Standalone Outcome Matrix Variables**")
             target_outcome = st.selectbox("Select Target Outcome Attribute", OUTCOME_KEYS)
-            
-            # Text inputs allow clean string handling to allow entries like #DIV/0! gracefully
             val_outcome_str = st.text_input(f"Percentage String for [{target_outcome}]", value=str(st.session_state.master_data["outcome_stats"].get(target_outcome, "0.0%")))
             
             if st.button("Commit Outcome Element Metric"):
                 st.session_state.master_data["outcome_stats"][target_outcome] = val_outcome_str
-                st.success(f"Outcome cell updated cleanly for entry label: [{target_outcome}].")
+                st.success(f"Outcome cell updated for: [{target_outcome}].")
                 st.rerun()
 
         st.divider()
