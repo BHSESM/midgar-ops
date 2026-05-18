@@ -281,8 +281,18 @@ STAFF_NAMES = [
     and "in" in st.session_state.master_data[k]
 ]
 
+# Initialize dynamic storage array map for temporary non-vault daily snapshot matrices
+if "daily_snapshot_data" not in st.session_state:
+    st.session_state.daily_snapshot_data = {
+        name: {"answered": 0, "pct": "100%", "outbound": 0, "open": 0, "close": 0}
+        for name in STAFF_NAMES
+    }
+
 # --- TABS DESCRIPTOR HUD ---
-tabs = st.tabs(["⚔️ Active Party", "📜 Missions", "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"])
+tabs = st.tabs([
+    "⚔️ Active Party", "📜 Missions", "⚡ Daily Snapshot", 
+    "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
+])
 
 # =============================================================================
 # TAB 1: ACTIVE PARTY VIEW
@@ -388,9 +398,103 @@ with tabs[1]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 3: TACTICAL OVERVIEW
+# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB
 # =============================================================================
 with tabs[2]:
+    st.title("⚡ Daily Tactical Snapshot Node")
+    st.write("Input current daily runtime vectors to generate quick snapshot panels for Teams synchronization sync channels.")
+    
+    snap_config_col, snap_preview_col = st.columns([1, 2])
+    
+    with snap_config_col:
+        st.subheader("📝 Input Profile Parameters")
+        target_snap_member = st.selectbox("Select Operative Node:", STAFF_NAMES, key="snap_select")
+        
+        # Pull current temporary values from array mapping frames
+        current_snap = st.session_state.daily_snapshot_data[target_snap_member]
+        
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            in_answered = st.number_input("Total Calls Answered", min_value=0, value=int(current_snap["answered"]), step=1, key="snap_ans")
+            in_outbound = st.number_input("Outbound Calls Logged", min_value=0, value=int(current_snap["outbound"]), step=1, key="snap_out")
+        with sc2:
+            in_pct = st.text_input("Percentage Answered", value=str(current_snap["pct"]), placeholder="e.g., 94%", key="snap_pct")
+            in_open = st.number_input("SD Opened Status", min_value=0, value=int(current_snap["open"]), step=1, key="snap_open")
+            
+        in_close = st.number_input("SD Closed Status", min_value=0, value=int(current_snap["close"]), step=1, key="snap_close")
+        
+        if st.button("💾 Apply Configuration to Runtime"):
+            st.session_state.daily_snapshot_data[target_snap_member].update({
+                "answered": in_answered,
+                "pct": in_pct if in_pct else "0%",
+                "outbound": in_outbound,
+                "open": in_open,
+                "close": in_close
+            })
+            st.success(f"Stats cached for {target_snap_member}!")
+            st.rerun()
+            
+    with snap_preview_col:
+        st.subheader("📸 Teams Live Output Panel")
+        st.write("Ready to screenshot and deploy directly to your Microsoft Teams workspace channels.")
+        
+        active_snap = st.session_state.daily_snapshot_data[target_snap_member]
+        avatar_url = AVATARS.get(target_snap_member, "")
+        
+        # High-contrast render framework to match Shinra framework styling boundaries cleanly
+        st.markdown(f"""
+            <div style="background: rgba(20, 20, 20, 0.85); border: 1px solid rgba(0, 255, 204, 0.5); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.9);">
+                <div style="display: flex; align-items: center; margin-bottom: 18px;">
+                    <img src="{avatar_url}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #00ffcc; box-shadow: 0 0 10px rgba(0,255,204,0.6); object-fit: cover; margin-right: 15px;">
+                    <div>
+                        <h3 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.3rem; text-shadow: 1px 1px 3px #000;">{target_snap_member}</h3>
+                        <span style="color: #00ffcc; font-size: 0.85rem; font-weight: bold; font-family: monospace;">DAILY OPERATIONAL PERFORMANCE SNAPSHOT</span>
+                    </div>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff;">
+                    <thead>
+                        <tr style="background: rgba(0, 255, 204, 0.15); color: #00ffcc; font-size: 0.85rem; border-bottom: 2px solid rgba(0, 255, 204, 0.3);">
+                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">Calls Answered</th>
+                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">Answer Rate %</th>
+                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">Outbound</th>
+                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">SD Opened</th>
+                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">SD Closed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="font-size: 1.2rem; font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.3);">
+                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['answered']}</td>
+                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['pct']}</td>
+                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['outbound']}</td>
+                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1); color: #ff4b4b;">{active_snap['open']}</td>
+                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['close']}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    st.divider()
+    st.subheader("📋 Collective Daily Snapshot Overview")
+    
+    # Render interactive grid of all daily rows logged so far
+    daily_rows_matrix = []
+    for name in STAFF_NAMES:
+        snap_item = st.session_state.daily_snapshot_data[name]
+        daily_rows_matrix.append({
+            "Operative": name,
+            "Calls Answered": snap_item["answered"],
+            "Answer Rate": snap_item["pct"],
+            "Outbound Calls": snap_item["outbound"],
+            "SD Opened": snap_item["open"],
+            "SD Closed": snap_item["close"]
+        })
+    st.table(pd.DataFrame(daily_rows_matrix))
+
+# =============================================================================
+# TAB 4: TACTICAL OVERVIEW
+# =============================================================================
+with tabs[3]:
     st.title("📊 Tactical Command Overview")
 
     st.subheader("📋 MTD Raw Stats")
@@ -473,9 +577,9 @@ with tabs[2]:
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 4: MAKO VOLUME HEATMAP (EXCEL LAYOUT SPECIFICATION)
+# TAB 5: MAKO VOLUME HEATMAP (EXCEL LAYOUT SPECIFICATION)
 # =============================================================================
-with tabs[3]:
+with tabs[4]:
     st.title("🔥 Mako Reactor Traffic Flow")
     
     # Horizontal Traffic Volumes row output mapping
@@ -486,16 +590,16 @@ with tabs[3]:
     
     st.divider()
     
-    # Standalone Outbound Matrix Row Block layout alignment (Jargon removed)
+    # Standalone Outbound Matrix Row Block layout alignment
     st.subheader("📊 Global Outcome Percentages")
     o_stats = st.session_state.master_data["outcome_stats"]
     horizontal_outcome_df = pd.DataFrame([o_stats], columns=OUTCOME_KEYS)
     st.table(horizontal_outcome_df)
 
 # =============================================================================
-# TAB 5: WALL MARKET (SHOP)
+# TAB 6: WALL MARKET (SHOP)
 # =============================================================================
-with tabs[4]:
+with tabs[5]:
     st.title("💰 Wall Market Item Shop")
     shop_ui_col1, shop_ui_col2 = st.columns([1, 2])
     
@@ -528,15 +632,15 @@ with tabs[4]:
             st.write("No items purchased yet.")
 
 # =============================================================================
-# TAB 6: ADMIN COMMAND CENTER
+# TAB 7: ADMIN COMMAND CENTER
 # =============================================================================
-with tabs[5]:
+with tabs[6]:
     st.header("🔐 Admin Command Center")
     
-    # CRITICAL FIX: Password authorization is now resolved directly via Streamlit Secrets
+    # Password authorization resolved via Streamlit Secrets
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
     
-    # Retrieve master pass target from vault system parameters fallback framework safely
+    # Retrieve master pass target from vault parameters
     vault_password = st.secrets.get("admin_password", "shinra2026")
 
     if admin_access == vault_password:
@@ -601,7 +705,7 @@ with tabs[5]:
 
         st.divider()
 
-        # --- PANEL MODULE 3: SPREADSHEET INPUT ROW GRID LAYOUT (TAB & TYPE DRIVEN) ---
+        # --- PANEL MODULE 3: SPREADSHEET INPUT ROW GRID LAYOUT ---
         st.subheader("🔥 Module 3: Update Mako Traffic Flows & Global Outcomes")
         st.caption("No dropdown menus. Fields are split into columnar segments. Tab and enter data straight out of Excel.")
         
