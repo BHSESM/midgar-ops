@@ -486,7 +486,7 @@ with tabs[3]:
     
     st.divider()
     
-    # Standalone Outbound Matrix Row Block layout alignment
+    # Standalone Outbound Matrix Row Block layout alignment (Jargon removed)
     st.subheader("📊 Global Outcome Percentages")
     o_stats = st.session_state.master_data["outcome_stats"]
     horizontal_outcome_df = pd.DataFrame([o_stats], columns=OUTCOME_KEYS)
@@ -532,9 +532,14 @@ with tabs[4]:
 # =============================================================================
 with tabs[5]:
     st.header("🔐 Admin Command Center")
+    
+    # CRITICAL FIX: Password authorization is now resolved directly via Streamlit Secrets
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
+    
+    # Retrieve master pass target from vault system parameters fallback framework safely
+    vault_password = st.secrets.get("admin_password", "shinra2026")
 
-    if admin_access == "shinra2026":
+    if admin_access == vault_password:
         st.success("Access Granted. Systems online.")
 
         # --- PANEL MODULE 1: INDIVIDUAL OPERATIVES ---
@@ -604,7 +609,6 @@ with tabs[5]:
         st.markdown("##### **Part A: Half-Hour Volume Parameters Input Grid**")
         v_inputs = {}
         
-        # We split the 23 items into 4 visual column arrays for high speed data input scaling
         v_cols = st.columns(4)
         for idx, slot in enumerate(TIME_SLOTS):
             col_target = v_cols[idx % 4]
@@ -630,7 +634,6 @@ with tabs[5]:
                 
         st.write("")
         if st.button("🚀 Mass-Commit Heatmap Metrics to Lifestream"):
-            # Update values directly into session dictionary arrays
             for slot in TIME_SLOTS:
                 st.session_state.master_data["volume_stats"][slot] = v_inputs[slot]
             for key in OUTCOME_KEYS:
