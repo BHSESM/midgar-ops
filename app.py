@@ -274,7 +274,6 @@ for _name in list(st.session_state.master_data.keys()):
 st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
 st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
 
-# CRITICAL FIX: Explicitly enforce that key targets MUST contain standard metrics dictionary blocks.
 STAFF_NAMES = [
     k for k in st.session_state.master_data.keys() 
     if k not in ["team_stats", "volume_stats", "outcome_stats"] 
@@ -474,11 +473,12 @@ with tabs[2]:
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 4: MAKO VOLUME HEATMAP 
+# TAB 4: MAKO VOLUME HEATMAP (EXCEL LAYOUT SPECIFICATION)
 # =============================================================================
 with tabs[3]:
     st.title("🔥 Mako Reactor Traffic Flow")
     
+    # Horizontal Traffic Volumes row output mapping
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = st.session_state.master_data["volume_stats"]
     horizontal_volume_df = pd.DataFrame([v_stats], columns=TIME_SLOTS)
@@ -486,8 +486,8 @@ with tabs[3]:
     
     st.divider()
     
+    # Standalone Outbound Matrix Row Block layout alignment
     st.subheader("📊 Global Outcome Percentages")
-    st.caption("Excel calculated outcome averages. Safe execution fallback prevents crash loops on string parameters.")
     o_stats = st.session_state.master_data["outcome_stats"]
     horizontal_outcome_df = pd.DataFrame([o_stats], columns=OUTCOME_KEYS)
     st.table(horizontal_outcome_df)
@@ -596,29 +596,47 @@ with tabs[5]:
 
         st.divider()
 
-        # --- PANEL MODULE 3: TRAFFIC FLOW VARIABLES ---
-        st.subheader("🔥 Module 3: Update Mako Heatmap Flow Matrices")
-        adm_hm_col1, adm_hm_col2 = st.columns(2)
+        # --- PANEL MODULE 3: SPREADSHEET INPUT ROW GRID LAYOUT (TAB & TYPE DRIVEN) ---
+        st.subheader("🔥 Module 3: Update Mako Traffic Flows & Global Outcomes")
+        st.caption("No dropdown menus. Fields are split into columnar segments. Tab and enter data straight out of Excel.")
         
-        with adm_hm_col1:
-            st.write("**Part A: Update Interval Volume Metrics**")
-            target_slot = st.selectbox("Select Target Interval Slot", TIME_SLOTS)
-            val_slot_vol = st.number_input(f"Raw Volume for [{target_slot}]", value=int(st.session_state.master_data["volume_stats"].get(target_slot, 0)), min_value=0, step=1)
-            
-            if st.button("Commit Volume Interval Entry"):
-                st.session_state.master_data["volume_stats"][target_slot] = val_slot_vol
-                st.success(f"Volume parameters saved for: [{target_slot}].")
-                st.rerun()
-
-        with adm_hm_col2:
-            st.write("**Part B: Update Standalone Outcome Matrix Variables**")
-            target_outcome = st.selectbox("Select Target Outcome Attribute", OUTCOME_KEYS)
-            val_outcome_str = st.text_input(f"Percentage String for [{target_outcome}]", value=str(st.session_state.master_data["outcome_stats"].get(target_outcome, "0.0%")))
-            
-            if st.button("Commit Outcome Element Metric"):
-                st.session_state.master_data["outcome_stats"][target_outcome] = val_outcome_str
-                st.success(f"Outcome cell updated for: [{target_outcome}].")
-                st.rerun()
+        # Part A: Horizontal Volume Entry Boxes
+        st.markdown("##### **Part A: Half-Hour Volume Parameters Input Grid**")
+        v_inputs = {}
+        
+        # We split the 23 items into 4 visual column arrays for high speed data input scaling
+        v_cols = st.columns(4)
+        for idx, slot in enumerate(TIME_SLOTS):
+            col_target = v_cols[idx % 4]
+            with col_target:
+                v_inputs[slot] = st.number_input(
+                    f"Vol: {slot}", 
+                    value=int(st.session_state.master_data["volume_stats"].get(slot, 0)), 
+                    min_value=0, 
+                    step=1
+                )
+                
+        # Part B: Standalone Global Outcome Entry Boxes 
+        st.markdown("##### **Part B: Standalone Percentage Metrics Input Grid**")
+        o_inputs = {}
+        o_cols = st.columns(4)
+        for idx, key in enumerate(OUTCOME_KEYS):
+            col_target = o_cols[idx % 4]
+            with col_target:
+                o_inputs[key] = st.text_input(
+                    f"{key}", 
+                    value=str(st.session_state.master_data["outcome_stats"].get(key, "0.0%"))
+                )
+                
+        st.write("")
+        if st.button("🚀 Mass-Commit Heatmap Metrics to Lifestream"):
+            # Update values directly into session dictionary arrays
+            for slot in TIME_SLOTS:
+                st.session_state.master_data["volume_stats"][slot] = v_inputs[slot]
+            for key in OUTCOME_KEYS:
+                st.session_state.master_data["outcome_stats"][key] = o_inputs[key]
+            st.success("All traffic flow parameters and global outcome matrix items saved successfully!")
+            st.rerun()
 
         st.divider()
 
