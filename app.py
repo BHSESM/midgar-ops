@@ -351,6 +351,7 @@ with tabs[1]:
         st.info(f"🔵 ON TRACK: {total_out} / {goal_out} calls reached.")
     else:
         st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
+    st.caption(f"Progress Index metrics mapping total Outbound volume metrics to team benchmarks securely.")
     st.markdown('</div>', unsafe_allow_html=True)
 
     # Mission 2
@@ -398,98 +399,98 @@ with tabs[1]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB
+# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB (MASS MULTI-INPUT MATRIX)
 # =============================================================================
 with tabs[2]:
     st.title("⚡ Daily Tactical Snapshot Node")
-    st.write("Input current daily runtime vectors to generate quick snapshot panels for Teams synchronization sync channels.")
+    st.write("Mass data grid input module. Type values and hit Tab to breeze down the list out of Excel or manual logs.")
     
-    snap_config_col, snap_preview_col = st.columns([1, 2])
+    # Storage dictionaries to receive multi-row entries down the layout loop
+    new_answered = {}
+    new_pct = {}
+    new_outbound = {}
+    new_open = {}
+    new_close = {}
     
-    with snap_config_col:
-        st.subheader("📝 Input Profile Parameters")
-        target_snap_member = st.selectbox("Select Operative Node:", STAFF_NAMES, key="snap_select")
+    st.subheader("📝 Universal Active Party Entry Grid")
+    
+    # Loop over every team member dynamically to render structured row grids simultaneously
+    for name in STAFF_NAMES:
+        current_vals = st.session_state.daily_snapshot_data[name]
         
-        # Pull current temporary values from array mapping frames
-        current_snap = st.session_state.daily_snapshot_data[target_snap_member]
+        # Use columns to cleanly line up entries horizontally on a single line
+        r_col0, r_col1, r_col2, r_col3, r_col4, r_col5 = st.columns([1.5, 1, 1, 1, 1, 1])
         
-        sc1, sc2 = st.columns(2)
-        with sc1:
-            in_answered = st.number_input("Total Calls Answered", min_value=0, value=int(current_snap["answered"]), step=1, key="snap_ans")
-            in_outbound = st.number_input("Outbound Calls Logged", min_value=0, value=int(current_snap["outbound"]), step=1, key="snap_out")
-        with sc2:
-            in_pct = st.text_input("Percentage Answered", value=str(current_snap["pct"]), placeholder="e.g., 94%", key="snap_pct")
-            in_open = st.number_input("SD Opened Status", min_value=0, value=int(current_snap["open"]), step=1, key="snap_open")
+        with r_col0:
+            st.markdown(f"<div style='padding-top:25px;'><strong>👤 {name}</strong></div>", unsafe_allow_html=True)
+        with r_col1:
+            new_answered[name] = st.number_input("Calls Ans", min_value=0, value=int(current_vals["answered"]), step=1, key=f"ans_{name}")
+        with r_col2:
+            new_pct[name] = st.text_input("Answer %", value=str(current_vals["pct"]), key=f"pct_{name}")
+        with r_col3:
+            new_outbound[name] = st.number_input("Outbound", min_value=0, value=int(current_vals["outbound"]), step=1, key=f"out_{name}")
+        with r_col4:
+            new_open[name] = st.number_input("SD Opened", min_value=0, value=int(current_vals["open"]), step=1, key=f"open_{name}")
+        with r_col5:
+            new_close[name] = st.number_input("SD Closed", min_value=0, value=int(current_vals["close"]), step=1, key=f"close_{name}")
             
-        in_close = st.number_input("SD Closed Status", min_value=0, value=int(current_snap["close"]), step=1, key="snap_close")
-        
-        if st.button("💾 Apply Configuration to Runtime"):
-            st.session_state.daily_snapshot_data[target_snap_member].update({
-                "answered": in_answered,
-                "pct": in_pct if in_pct else "0%",
-                "outbound": in_outbound,
-                "open": in_open,
-                "close": in_close
+    st.write("")
+    if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
+        for name in STAFF_NAMES:
+            st.session_state.daily_snapshot_data[name].update({
+                "answered": new_answered[name],
+                "pct": new_pct[name] if new_pct[name] else "100%",
+                "outbound": new_outbound[name],
+                "open": new_open[name],
+                "close": new_close[name]
             })
-            st.success(f"Stats cached for {target_snap_member}!")
-            st.rerun()
-            
-    with snap_preview_col:
-        st.subheader("📸 Teams Live Output Panel")
-        st.write("Ready to screenshot and deploy directly to your Microsoft Teams workspace channels.")
-        
-        active_snap = st.session_state.daily_snapshot_data[target_snap_member]
-        avatar_url = AVATARS.get(target_snap_member, "")
-        
-        # High-contrast render framework to match Shinra framework styling boundaries cleanly
-        st.markdown(f"""
-            <div style="background: rgba(20, 20, 20, 0.85); border: 1px solid rgba(0, 255, 204, 0.5); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.9);">
-                <div style="display: flex; align-items: center; margin-bottom: 18px;">
-                    <img src="{avatar_url}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #00ffcc; box-shadow: 0 0 10px rgba(0,255,204,0.6); object-fit: cover; margin-right: 15px;">
-                    <div>
-                        <h3 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.3rem; text-shadow: 1px 1px 3px #000;">{target_snap_member}</h3>
-                        <span style="color: #00ffcc; font-size: 0.85rem; font-weight: bold; font-family: monospace;">DAILY OPERATIONAL PERFORMANCE SNAPSHOT</span>
-                    </div>
-                </div>
-                <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff;">
-                    <thead>
-                        <tr style="background: rgba(0, 255, 204, 0.15); color: #00ffcc; font-size: 0.85rem; border-bottom: 2px solid rgba(0, 255, 204, 0.3);">
-                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">Calls Answered</th>
-                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">Answer Rate %</th>
-                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">Outbound</th>
-                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">SD Opened</th>
-                            <th style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">SD Closed</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="font-size: 1.2rem; font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.3);">
-                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['answered']}</td>
-                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['pct']}</td>
-                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['outbound']}</td>
-                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1); color: #ff4b4b;">{active_snap['open']}</td>
-                            <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['close']}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        """, unsafe_allow_html=True)
+        st.success("All operative parameters saved successfully to transient runtime frames!")
+        st.rerun()
         
     st.divider()
-    st.subheader("📋 Collective Daily Snapshot Overview")
     
-    # Render interactive grid of all daily rows logged so far
-    daily_rows_matrix = []
-    for name in STAFF_NAMES:
-        snap_item = st.session_state.daily_snapshot_data[name]
-        daily_rows_matrix.append({
-            "Operative": name,
-            "Calls Answered": snap_item["answered"],
-            "Answer Rate": snap_item["pct"],
-            "Outbound Calls": snap_item["outbound"],
-            "SD Opened": snap_item["open"],
-            "SD Closed": snap_item["close"]
-        })
-    st.table(pd.DataFrame(daily_rows_matrix))
+    # --- PREVIEW HUB GENERATOR ROW ---
+    st.subheader("📸 Teams Live Output Panel Feed")
+    st.write("Scroll down to individual panels to snapshot update cards straight into your Teams channels.")
+    
+    # Render all cards back-to-back in an easy-to-crop display stack
+    stack_cols = st.columns(3)
+    for idx, name in enumerate(STAFF_NAMES):
+        active_snap = st.session_state.daily_snapshot_data[name]
+        avatar_url = AVATARS.get(name, "")
+        
+        with stack_cols[idx % 3]:
+            st.markdown(f"""
+                <div style="background: rgba(20, 20, 20, 0.85); border: 1px solid rgba(0, 255, 204, 0.5); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.9); margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 18px;">
+                        <img src="{avatar_url}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #00ffcc; box-shadow: 0 0 10px rgba(0,255,204,0.6); object-fit: cover; margin-right: 15px;">
+                        <div>
+                            <h3 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.2rem; text-shadow: 1px 1px 3px #000;">{name}</h3>
+                            <span style="color: #00ffcc; font-size: 0.8rem; font-weight: bold; font-family: monospace;">DAILY RUNTIME MATRIX UPDATE</span>
+                        </div>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: rgba(0, 255, 204, 0.15); color: #00ffcc; border-bottom: 2px solid rgba(0, 255, 204, 0.3);">
+                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Ans</th>
+                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Rate</th>
+                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Out</th>
+                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Open</th>
+                                <th style="padding: 6px; border: 1px solid rgba(255,255,255,0.1);">Close</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.3); font-size: 1.05rem;">
+                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['answered']}</td>
+                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['pct']}</td>
+                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1);">{active_snap['outbound']}</td>
+                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); color: #ff4b4b;">{active_snap['open']}</td>
+                                <td style="padding: 10px; border: 1px solid rgba(255,255,255,0.1); color: #00ffcc;">{active_snap['close']}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            """, unsafe_allow_html=True)
 
 # =============================================================================
 # TAB 4: TACTICAL OVERVIEW
