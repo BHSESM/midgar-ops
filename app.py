@@ -289,7 +289,7 @@ STAFF_NAMES = [
     and "in" in st.session_state.master_data[k]
 ]
 
-# Initialize dynamic storage array map for temporary non-vault daily snapshot matrices
+# Initialize dynamic storage array map for temporary daily snapshot data frames
 if "daily_snapshot_data" not in st.session_state:
     st.session_state.daily_snapshot_data = {
         name: {"answered": 0, "pct": "100%", "outbound": 0, "open": 0, "close": 0}
@@ -412,9 +412,8 @@ with tabs[2]:
     st.title("⚡ Daily Tactical Snapshot Node")
     
     # --- SECTION A: PRESENTATION FIRST DISPLAY STACK (2-ACROSS RESIZED) ---
-    # Moved directly to the landing zone layout top for quick screenshotted crops
     st.subheader("📸 Teams Live Output Panel Feed")
-    st.write("2-Across structural layout. Cards carry expanded vertical padding frames and enlarged avatar bounds.")
+    st.write("Cards feature uncropped bounding parameters for transparent portrait alignment.")
     
     stack_cols = st.columns(2)
     for idx, name in enumerate(STAFF_NAMES):
@@ -422,13 +421,13 @@ with tabs[2]:
         avatar_url = AVATARS.get(name, "")
         
         with stack_cols[idx % 2]:
+            # FIX: Swapped out circle masks for rounded corner rectangles, using object-fit: contain to preserve the rendering format
             st.markdown(f"""
-                <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 250px;">
-                    <div style="display: flex; align-items: center; margin-bottom: 25px;">
-                        <img src="{avatar_url}" style="width: 85px; height: 85px; border-radius: 50%; border: 3px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.7); object-fit: cover; margin-right: 22px;">
+                <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 230px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 22px;">
+                        <img src="{avatar_url}" style="width: 85px; height: 85px; border-radius: 8px; border: 2px solid #00ffcc; box-shadow: 0 0 12px rgba(0,255,204,0.5); object-fit: contain; background-color: rgba(0,0,0,0.5); margin-right: 22px;">
                         <div>
-                            <h2 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.6rem; font-weight: bold; text-shadow: 2px 2px 4px #000; letter-spacing: 0.5px;">{name}</h2>
-                            <span style="color: #00ffcc; font-size: 0.95rem; font-weight: bold; font-family: monospace; letter-spacing: 1px; text-transform: uppercase;">DAILY RUNTIME MATRIX UPDATE</span>
+                            <h2 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.75rem; font-weight: bold; text-shadow: 2px 2px 4px #000; letter-spacing: 0.5px;">{name}</h2>
                         </div>
                     </div>
                     <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 1.0rem;">
@@ -456,8 +455,7 @@ with tabs[2]:
             
     st.divider()
 
-    # --- SECTION B: HIDDEN DATA ENTRY DRAWER Accordion CONTROL ---
-    # Tucked securely under a single expander object wrapper frame to preserve presentation value
+    # --- SECTION B: HIDDEN DATA ENTRY DRAWER ---
     with st.expander("🛠️ Open Operational Data Entry Terminal", expanded=False):
         st.write("Mass multi-row entry console system. Tab entries directly from external trackers.")
         
