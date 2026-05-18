@@ -205,7 +205,7 @@ def load_data():
         # Backfill team_stats for snapshots that predate this feature
         data.setdefault("team_stats", {
             "success_pct": 0.0, "sla_pct": 0.0,
-            "longest_wait": 0.0, "avg_queue": 0.0
+            "longest_wait": "00:00:00", "avg_queue": "00:00:00"
         })
         return data
     # Fresh default data
@@ -218,7 +218,7 @@ def load_data():
     }
     base["team_stats"] = {
         "success_pct": 0.0, "sla_pct": 0.0,
-        "longest_wait": 0.0, "avg_queue": 0.0
+        "longest_wait": "00:00:00", "avg_queue": "00:00:00"
     }
     return base
 
@@ -231,7 +231,7 @@ for _name in list(st.session_state.master_data.keys()):
     if _name != "team_stats":
         st.session_state.master_data[_name].setdefault("days_worked", 0)
 st.session_state.master_data.setdefault("team_stats", {
-    "success_pct": 0.0, "sla_pct": 0.0, "longest_wait": 0.0, "avg_queue": 0.0
+    "success_pct": 0.0, "sla_pct": 0.0, "longest_wait": "00:00:00", "avg_queue": "00:00:00"
 })
 
 # Convenience list — excludes the team_stats key so loops stay clean
@@ -370,10 +370,10 @@ with tabs[2]:
     st.subheader("🌐 Team Performance Metrics")
     st.caption("Manually updated metrics covering the whole team — not attributable to individual operatives.")
     team_metrics_row = {
-        "Overall Success %":         f"{ts['success_pct']}%",
-        "SD Tickets Within SLA %":   f"{ts['sla_pct']}%",
-        "Longest Wait Avg (mins)":   ts["longest_wait"],
-        "Avg Queue Time (mins)":     ts["avg_queue"],
+        "Overall Success %":       f"{ts['success_pct']}%",
+        "SD Tickets Within SLA %": f"{ts['sla_pct']}%",
+        "Longest Wait Avg":        ts["longest_wait"],
+        "Avg Queue Time":          ts["avg_queue"],
     }
     st.table(pd.DataFrame([team_metrics_row]))
 
@@ -551,24 +551,44 @@ with tabs[4]:
                 min_value=0.0, max_value=100.0, step=0.1, format="%.1f"
             )
         with tm_col2:
-            val_longest_wait = st.number_input(
-                "Longest Wait Time Average (mins)",
-                value=float(ts["longest_wait"]),
-                min_value=0.0, step=0.1, format="%.1f"
+            # Time fields stored as HH:MM:SS strings
+            # Backfill: if an older snapshot stored these as numbers, convert gracefully
+            raw_lw = ts["longest_wait"]
+            raw_aq = ts["avg_queue"]
+            default_lw = raw_lw if isinstance(raw_lw, str) else "00:00:00"
+            default_aq = raw_aq if isinstance(raw_aq, str) else "00:00:00"
+
+            val_longest_wait = st.text_input(
+                "Longest Wait Time Average (HH:MM:SS)",
+                value=default_lw,
+                help="Enter as HH:MM:SS — e.g. 00:04:05 for 4 minutes 5 seconds"
             )
-            val_avg_queue = st.number_input(
-                "Average Queue Time (mins)",
-                value=float(ts["avg_queue"]),
-                min_value=0.0, step=0.1, format="%.1f"
+            val_avg_queue = st.text_input(
+                "Average Queue Time (HH:MM:SS)",
+                value=default_aq,
+                help="Enter as HH:MM:SS — e.g. 00:00:36 for 36 seconds"
             )
 
+            # Validate format before allowing save
+            import re
+            time_pattern = re.compile(r"^\d{2}:\d{2}:\d{2}$")
+            lw_valid = bool(time_pattern.match(val_longest_wait))
+            aq_valid = bool(time_pattern.match(val_avg_queue))
+            if not lw_valid:
+                st.error("Longest Wait: please use HH:MM:SS format (e.g. 00:04:05)")
+            if not aq_valid:
+                st.error("Avg Queue Time: please use HH:MM:SS format (e.g. 00:00:36)")
+
         if st.button("Commit Team Metrics to Lifestream"):
-            st.session_state.master_data["team_stats"].update({
-                "success_pct":  val_success,
-                "sla_pct":      val_sla,
-                "longest_wait": val_longest_wait,
-                "avg_queue":    val_avg_queue
-            })
+            if lw_valid and aq_valid:
+                st.session_state.master_data["team_stats"].update({
+                    "success_pct":  val_success,
+                    "sla_pct":      val_sla,
+                    "longest_wait": val_longest_wait,
+                    "avg_queue":    val_avg_queue
+                })
+            else:
+                st.error("Please fix the time format errors above before saving.")
             st.rerun()
 
         st.divider()
