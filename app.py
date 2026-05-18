@@ -50,37 +50,12 @@ st.markdown("""
         color: #00ffcc !important;
         border-bottom: 1px solid rgba(0, 255, 204, 0.3) !important;
         padding: 12px !important;
-        font-size: 1rem !important;
+        font-size: 0.9rem !important;
     }
     div[data-testid="stTable"] td {
         text-align: center !important;
         padding: 12px !important;
         color: #f0f0f0 !important;
-    }
-
-    /* Custom Heatmap Grid Cells styling */
-    .heatmap-header {
-        color: #00ffcc !important;
-        font-weight: bold;
-        text-align: center;
-        background: rgba(0, 255, 204, 0.1);
-        padding: 8px;
-        border-radius: 5px;
-    }
-    
-    .heatmap-cell {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(0, 255, 204, 0.2);
-        border-radius: 8px;
-        padding: 12px;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    
-    .heatmap-value {
-        color: #00ffcc !important;
-        font-size: 1.2rem;
-        font-weight: bold;
         font-family: 'Courier New', monospace;
     }
 
@@ -259,24 +234,23 @@ def load_data():
     if "staff_json" in st.secrets:
         data = json.loads(st.secrets["staff_json"])
         
-        # Backfill Team Stats
+        # Backfill Base Team Metrics
         data.setdefault("team_stats", {
             "success_pct": 0.0, "sla_pct": 0.0,
             "longest_wait": "00:00:00", "avg_queue": "00:00:00"
         })
         
-        # Backfill Heatmap Stats Structure
-        if "heatmap_stats" not in data:
-            data["heatmap_stats"] = {}
-        for slot in TIME_SLOTS:
-            if slot not in data["heatmap_stats"]:
-                data["heatmap_stats"][slot] = {"volume": 0.0}
-                for out_key in OUTCOME_KEYS:
-                    data["heatmap_stats"][slot][out_key] = 0.0
-                    
+        # Backfill Clean Volume Stats Layout Structure (Horizontal Mapping Layout)
+        if "volume_stats" not in data:
+            data["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
+            
+        # Backfill Standalone Global Outcomes Array Layout
+        if "outcome_stats" not in data:
+            data["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
+            
         return data
 
-    # Complete initialization structure fallback
+    # Default Fresh Deployment Configuration
     base = {
         name: {
             "in": 0, "out": 0, "open": 0, "close": 0,
@@ -288,37 +262,25 @@ def load_data():
         "success_pct": 0.0, "sla_pct": 0.0,
         "longest_wait": "00:00:00", "avg_queue": "00:00:00"
     }
-    base["heatmap_stats"] = {}
-    for slot in TIME_SLOTS:
-        base["heatmap_stats"][slot] = {"volume": 0.0}
-        for out_key in OUTCOME_KEYS:
-            base["heatmap_stats"][slot][out_key] = 0.0
-            
+    base["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
+    base["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
     return base
 
-# --- SESSION STATE INITIALIZATION ---
+# --- RUNNING INIT SEQUENCING ---
 if "master_data" not in st.session_state:
     st.session_state.master_data = load_data()
 
-# Structural Backfills
+# Structural verification loop checks
 for _name in list(st.session_state.master_data.keys()):
-    if _name not in ["team_stats", "heatmap_stats"]:
+    if _name not in ["team_stats", "volume_stats", "outcome_stats"]:
         st.session_state.master_data[_name].setdefault("days_worked", 0)
 
-st.session_state.master_data.setdefault("team_stats", {
-    "success_pct": 0.0, "sla_pct": 0.0, "longest_wait": "00:00:00", "avg_queue": "00:00:00"
-})
+st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
+st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
 
-if "heatmap_stats" not in st.session_state.master_data:
-    st.session_state.master_data["heatmap_stats"] = {}
-for _slot in TIME_SLOTS:
-    st.session_state.master_data["heatmap_stats"].setdefault(_slot, {"volume": 0.0})
-    for _okey in OUTCOME_KEYS:
-        st.session_state.master_data["heatmap_stats"][_slot].setdefault(_okey, 0.0)
+STAFF_NAMES = [k for k in st.session_state.master_data.keys() if k not in ["team_stats", "volume_stats", "outcome_stats"]]
 
-STAFF_NAMES = [k for k in st.session_state.master_data.keys() if k not in ["team_stats", "heatmap_stats"]]
-
-# --- 5. TABS INTERFACE ---
+# --- TABS DESCRIPTOR HUD ---
 tabs = st.tabs(["⚔️ Active Party", "📜 Missions", "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"])
 
 # =============================================================================
@@ -365,7 +327,7 @@ with tabs[0]:
 with tabs[1]:
     st.title("📜 Sector 7 Bounty Board")
     
-    # Outbound Mission
+    # Mission 1
     total_out = sum(st.session_state.master_data[n]["out"] for n in STAFF_NAMES)
     goal_out = 500
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -373,14 +335,14 @@ with tabs[1]:
     st.write(f"Objective: Reach a collective **{goal_out}** Outbound calls this month.")
     st.progress(min(1.0, total_out / goal_out))
     if total_out >= goal_out:
-        st.success(f"✅ MISSION COMPLETE! The expressway is clear. Total: {total_out}")
+        st.success(f"✅ MISSION COMPLETE! Total: {total_out}")
     elif total_out >= (goal_out * 0.5):
         st.info(f"🔵 ON TRACK: {total_out} / {goal_out} calls reached.")
     else:
         st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Answer Rate Mission (98% Realism Check)
+    # Mission 2
     avg_ans = sum(st.session_state.master_data[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES)
     goal_ans = 98.0
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -395,7 +357,7 @@ with tabs[1]:
         st.error(f"❌ CRITICAL: Average is below safety threshold at {avg_ans:.1f}%")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # AWOL Pool Mission (5 Mins Shared Pool)
+    # Mission 3
     total_awol = sum(st.session_state.master_data[n]["awol"] for n in STAFF_NAMES)
     max_awol = 5.0
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -408,17 +370,14 @@ with tabs[1]:
         st.error(f"❌ MISSION FAILED: Total AWOL is {total_awol}m ({total_awol - max_awol:.1f}m over limit).")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # SLA Window Mission (Optimized Bar Scaling)
+    # Mission 4
     sla_pct = float(st.session_state.master_data["team_stats"]["sla_pct"])
     goal_sla = 92.5
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
     st.subheader("📋 TEAM MISSION: Hold the Line on SLA")
     st.write(f"Objective: Keep SD Tickets Within SLA at **{goal_sla}%** or above.")
-    
-    # Scaled view: Map 80%-100% array window dynamically onto the progress component
     scaled_sla_progress = min(1.0, max(0.0, (sla_pct - 80.0) / 20.0)) if sla_pct > 80.0 else 0.0
     st.progress(scaled_sla_progress)
-    
     if sla_pct >= goal_sla:
         st.success(f"✅ SLA HOLDING: Currently at {sla_pct:.1f}% — target met.")
     elif sla_pct >= 88.0:
@@ -439,14 +398,9 @@ with tabs[2]:
         s = st.session_state.master_data[name]
         res = get_stats(s)
         data_rows.append({
-            "Operative": name,
-            "Inbound": s["in"],
-            "Outbound": s["out"],
-            "SD Opened": s["open"],
-            "SD Closed": s["close"],
-            "Ans Rate": f"{s['ans']}%",
-            "AWOL": f"{s['awol']}m",
-            "Wallet": f"{res['GIL']} GIL"
+            "Operative": name, "Inbound": s["in"], "Outbound": s["out"],
+            "SD Opened": s["open"], "SD Closed": s["close"], "Ans Rate": f"{s['ans']}%",
+            "AWOL": f"{s['awol']}m", "Wallet": f"{res['GIL']} GIL"
         })
     st.table(pd.DataFrame(data_rows))
 
@@ -466,10 +420,8 @@ with tabs[2]:
     ts = st.session_state.master_data["team_stats"]
     st.subheader("🌐 Team Performance Metrics")
     team_metrics_row = {
-        "Overall Success %": f"{ts['success_pct']}%",
-        "SD Tickets Within SLA %": f"{ts['sla_pct']}%",
-        "Longest Wait Avg": ts["longest_wait"],
-        "Avg Queue Time": ts["avg_queue"],
+        "Overall Success %": f"{ts['success_pct']}%", "SD Tickets Within SLA %": f"{ts['sla_pct']}%",
+        "Longest Wait Avg": ts["longest_wait"], "Avg Queue Time": ts["avg_queue"],
     }
     st.table(pd.DataFrame([team_metrics_row]))
 
@@ -488,13 +440,9 @@ with tabs[2]:
             return str(val) if val is not None else "—"
 
         avg_rows.append({
-            "Operative": name,
-            "Days Worked": days,
-            "Weighted Days": eff_days if days > 0 else "—",
-            "Avg Inbound": fmt(avgs["avg_in"]),
-            "Avg Outbound": fmt(avgs["avg_out"]),
-            "Avg SD Opened": fmt(avgs["avg_open"]),
-            "Avg SD Closed": fmt(avgs["avg_close"]),
+            "Operative": name, "Days Worked": days, "Weighted Days": eff_days if days > 0 else "—",
+            "Avg Inbound": fmt(avgs["avg_in"]), "Avg Outbound": fmt(avgs["avg_out"]),
+            "Avg SD Opened": fmt(avgs["avg_open"]), "Avg SD Closed": fmt(avgs["avg_close"]),
         })
     st.table(pd.DataFrame(avg_rows))
 
@@ -509,12 +457,9 @@ with tabs[2]:
     h_col1, h_col2, h_col3 = st.columns(3)
     h_col4, h_col5, h_col6 = st.columns(3)
     honors_list = [
-        (h_col1, "📞 Inbound King/Queen", "in", True),
-        (h_col2, "☎️ Outbound Ace", "out", True),
-        (h_col3, "📂 Request Opener", "open", True),
-        (h_col4, "✅ Ticket Crusher", "close", True),
-        (h_col5, "💯 Comms Master", "ans", True),
-        (h_col6, "🛡️ Always Ready", "awol", False)
+        (h_col1, "📞 Inbound King/Queen", "in", True), (h_col2, "☎️ Outbound Ace", "out", True),
+        (h_col3, "📂 Request Opener", "open", True), (h_col4, "✅ Ticket Crusher", "close", True),
+        (h_col5, "💯 Comms Master", "ans", True), (h_col6, "🛡️ Always Ready", "awol", False)
     ]
     for col, title, key, is_high in honors_list:
         with col:
@@ -526,28 +471,28 @@ with tabs[2]:
             """, unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 4: MAKO VOLUME HEATMAP (NEW FEATURE)
+# TAB 4: MAKO VOLUME HEATMAP (CORRECTED EXCEL REPLICA LAYOUT)
 # =============================================================================
 with tabs[3]:
     st.title("🔥 Mako Reactor Traffic Flow")
-    st.subheader("📈 Month-to-Date Call Volume & Outcome Matrix")
-    st.caption("Data points correspond to historical Excel calculations. Outcome totals represent relative distribution and will not always force-sum to 100%.")
     
-    # Process heatmap into structured tabular display layout
-    heatmap_data = st.session_state.master_data["heatmap_stats"]
+    # 1. HORIZONTAL TRAFFIC VOLUMES MAP (Matches image_8bf9c6.png layout)
+    st.subheader("📈 MTD Half-Hour Traffic Volumes")
+    v_stats = st.session_state.master_data["volume_stats"]
     
-    display_rows = []
-    for slot in TIME_SLOTS:
-        slot_data = heatmap_data.get(slot, {})
-        row_dict = {
-            "Interval Window": slot,
-            "Avg MTD Volume": f"{slot_data.get('volume', 0.0):.1f}"
-        }
-        for out_key in OUTCOME_KEYS:
-            row_dict[out_key] = f"{slot_data.get(out_key, 0.0):.1f}%"
-        display_rows.append(row_dict)
-        
-    st.table(pd.DataFrame(display_rows))
+    # Reshaping dictionary map into standard clean horizontal array row matrix
+    horizontal_volume_df = pd.DataFrame([v_stats], columns=TIME_SLOTS)
+    st.table(horizontal_volume_df)
+    
+    st.divider()
+    
+    # 2. STANDALONE GLOBAL OUTCOMES ROW MATRIX (Matches image_8bf9ab.png layout)
+    st.subheader("📊 Global Outcome Percentages")
+    st.caption("Excel calculated outcome averages. Cells containing raw string markers handle divide-by-zero bounds safely.")
+    o_stats = st.session_state.master_data["outcome_stats"]
+    
+    horizontal_outcome_df = pd.DataFrame([o_stats], columns=OUTCOME_KEYS)
+    st.table(horizontal_outcome_df)
 
 # =============================================================================
 # TAB 5: WALL MARKET (SHOP)
@@ -580,8 +525,7 @@ with tabs[4]:
         log_view_name = st.selectbox("View History For:", STAFF_NAMES)
         logs = st.session_state.master_data[log_view_name].get("history", [])
         if logs:
-            for entry in logs:
-                st.write(f"• {entry}")
+            for entry in logs: st.write(f"• {entry}")
         else:
             st.write("No items purchased yet.")
 
@@ -593,7 +537,7 @@ with tabs[5]:
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
 
     if admin_access == "shinra2026":
-        st.success("Access Granted. System core initialized.")
+        st.success("Access Granted. Systems online.")
 
         # --- PANEL MODULE 1: INDIVIDUAL OPERATIVES ---
         st.subheader("👤 Module 1: Update Individual Operative Metrics")
@@ -606,7 +550,6 @@ with tabs[5]:
             val_out = st.number_input("Outbound Calls", value=operative_vals["out"])
             val_ans = st.slider("Answer Rate %", 0, 100, int(operative_vals["ans"]))
             val_days = st.number_input("Days Worked (MTD)", value=operative_vals.get("days_worked", 0), min_value=0, step=1)
-
         with form_col2:
             val_open = st.number_input("SD Tickets Opened", value=operative_vals["open"])
             val_close = st.number_input("SD Tickets Closed", value=operative_vals["close"])
@@ -641,8 +584,8 @@ with tabs[5]:
             time_pattern = re.compile(r"^\d{2}:\d{2}:\d{2}$")
             lw_valid = bool(time_pattern.match(val_longest_wait))
             aq_valid = bool(time_pattern.match(val_avg_queue))
-            if not lw_valid: st.error("Longest Wait layout format error. Format as HH:MM:SS.")
-            if not aq_valid: st.error("Avg Queue layout format error. Format as HH:MM:SS.")
+            if not lw_valid: st.error("Longest Wait format error. Use HH:MM:SS format.")
+            if not aq_valid: st.error("Avg Queue Time format error. Use HH:MM:SS format.")
 
         if st.button("Commit Team Metrics to Lifestream"):
             if lw_valid and aq_valid:
@@ -651,45 +594,44 @@ with tabs[5]:
                     "longest_wait": val_longest_wait, "avg_queue": val_avg_queue
                 })
                 st.rerun()
-            else:
-                st.error("Cannot resolve metric frame parameters. Fix the formatting matrix issues.")
+            else: st.error("Cannot preserve configuration. Fix the layout time matrix format criteria errors above.")
 
         st.divider()
 
-        # --- PANEL MODULE 3: MAKO TRAFFIC REACTOR HEATMAP (NEW INTERFACE) ---
-        st.subheader("🔥 Module 3: Update Mako Reactor Heatmap Flows")
-        selected_slot = st.selectbox("Select Time-Interval Window Matrix", TIME_SLOTS)
-        current_slot_data = st.session_state.master_data["heatmap_stats"][selected_slot]
+        # --- PANEL MODULE 3: HORIZONTAL HIGHWAY TRAFFIC DESCRIPTORS ---
+        st.subheader("🔥 Module 3: Update Mako Heatmap Flow Matrices")
         
-        hm_input_col1, hm_input_col2 = st.columns(2)
-        with hm_input_col1:
-            input_vol = st.number_input(f"Avg MTD Vol for [{selected_slot}]", value=float(current_slot_data.get("volume", 0.0)), min_value=0.0, step=0.1, format="%.1f")
+        adm_hm_col1, adm_hm_col2 = st.columns(2)
+        
+        with adm_hm_col1:
+            st.write("**Part A: Update Interval Volume Metrics**")
+            target_slot = st.selectbox("Select Target Interval Slot", TIME_SLOTS)
+            val_slot_vol = st.number_input(f"Raw Volume for [{target_slot}]", value=int(st.session_state.master_data["volume_stats"].get(target_slot, 0)), min_value=0, step=1)
             
-            # Divide the outcomes matrix evenly across the columns layout tracking fields
-            outcome_vals = {}
-            for idx in range(0, 6):
-                key = OUTCOME_KEYS[idx]
-                outcome_vals[key] = st.number_input(f"{key} %", value=float(current_slot_data.get(key, 0.0)), min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-        with hm_input_col2:
-            st.write("Outcomes Grid Matrix Continued:")
-            for idx in range(6, 12):
-                key = OUTCOME_KEYS[idx]
-                outcome_vals[key] = st.number_input(f"{key} %", value=float(current_slot_data.get(key, 0.0)), min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-                
-        if st.button("Commit Interval Flows to Lifestream"):
-            st.session_state.master_data["heatmap_stats"][selected_slot]["volume"] = input_vol
-            for out_key in OUTCOME_KEYS:
-                st.session_state.master_data["heatmap_stats"][selected_slot][out_key] = outcome_vals[out_key]
-            st.success(f"Flow data for [{selected_slot}] updated cleanly.")
-            st.rerun()
+            if st.button("Commit Volume Interval Entry"):
+                st.session_state.master_data["volume_stats"][target_slot] = val_slot_vol
+                st.success(f"Volume metric parameters saved for interval window: [{target_slot}].")
+                st.rerun()
+
+        with adm_hm_col2:
+            st.write("**Part B: Update Standalone Outcome Matrix Variables**")
+            target_outcome = st.selectbox("Select Target Outcome Attribute", OUTCOME_KEYS)
+            
+            # Text inputs allow clean string handling to allow entries like #DIV/0! gracefully
+            val_outcome_str = st.text_input(f"Percentage String for [{target_outcome}]", value=str(st.session_state.master_data["outcome_stats"].get(target_outcome, "0.0%")))
+            
+            if st.button("Commit Outcome Element Metric"):
+                st.session_state.master_data["outcome_stats"][target_outcome] = val_outcome_str
+                st.success(f"Outcome cell updated cleanly for entry label: [{target_outcome}].")
+                st.rerun()
 
         st.divider()
 
-        # --- EXPORT TO SECRET PANEL MANAGER ---
+        # --- EXPORT INTERFACE BLOCK MATRIX ---
         st.subheader("Manual Data Save String")
-        st.warning("Ensure this text block output is updated inside your Streamlit Cloud Vault Secrets configuration.")
+        st.warning("Ensure this text block code snippet is extracted and pasted into your active Streamlit Cloud Vault configuration properties framework setup.")
         export_string = json.dumps(st.session_state.master_data)
         st.code(f"staff_json = '{export_string}'", language="toml")
 
     elif admin_access != "":
-        st.error("Access Denied. Shinra Security is en route.")
+        st.error("Access Denied. Security measures initialized.")
