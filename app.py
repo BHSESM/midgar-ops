@@ -132,6 +132,14 @@ st.markdown("""
     }
 
     [data-testid="stMetricValue"] { color: #00ffcc !important; font-family: 'Courier New', monospace; }
+    
+    /* Collapsible Dropdown Accordion Panel Override Styling */
+    div[data-testid="stExpander"] {
+        background-color: rgba(30, 30, 30, 0.5) !important;
+        border: 1px solid rgba(0, 255, 204, 0.2) !important;
+        border-radius: 10px !important;
+        margin-top: 15px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -398,65 +406,22 @@ with tabs[1]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB (MASS MULTI-INPUT MATRIX & 2-GRID CARD FEED)
+# TAB 3: DAILY SNAPSHOT HUD OPERATIONAL HUB (CLEAN PRESENTATION-FIRST LAYOUT)
 # =============================================================================
 with tabs[2]:
     st.title("⚡ Daily Tactical Snapshot Node")
-    st.write("Mass data grid input module. Type values and hit Tab to breeze down the list out of Excel or manual logs.")
     
-    new_answered = {}
-    new_pct = {}
-    new_outbound = {}
-    new_open = {}
-    new_close = {}
-    
-    st.subheader("📝 Universal Active Party Entry Grid")
-    
-    # Universal loop for horizontal inputs
-    for name in STAFF_NAMES:
-        current_vals = st.session_state.daily_snapshot_data[name]
-        r_col0, r_col1, r_col2, r_col3, r_col4, r_col5 = st.columns([1.5, 1, 1, 1, 1, 1])
-        
-        with r_col0:
-            st.markdown(f"<div style='padding-top:25px;'><strong>👤 {name}</strong></div>", unsafe_allow_html=True)
-        with r_col1:
-            new_answered[name] = st.number_input("Calls Ans", min_value=0, value=int(current_vals["answered"]), step=1, key=f"ans_{name}")
-        with r_col2:
-            new_pct[name] = st.text_input("Answer %", value=str(current_vals["pct"]), key=f"pct_{name}")
-        with r_col3:
-            new_outbound[name] = st.number_input("Outbound", min_value=0, value=int(current_vals["outbound"]), step=1, key=f"out_{name}")
-        with r_col4:
-            new_open[name] = st.number_input("SD Opened", min_value=0, value=int(current_vals["open"]), step=1, key=f"open_{name}")
-        with r_col5:
-            new_close[name] = st.number_input("SD Closed", min_value=0, value=int(current_vals["close"]), step=1, key=f"close_{name}")
-            
-    st.write("")
-    if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
-        for name in STAFF_NAMES:
-            st.session_state.daily_snapshot_data[name].update({
-                "answered": new_answered[name],
-                "pct": new_pct[name] if new_pct[name] else "100%",
-                "outbound": new_outbound[name],
-                "open": new_open[name],
-                "close": new_close[name]
-            })
-        st.success("All operative parameters saved successfully to transient runtime frames!")
-        st.rerun()
-        
-    st.divider()
-    
-    # --- PREVIEW HUB GENERATOR ROW WITH 2-ACROSS LAYOUT & ENHANCED VERTICAL FOOLPROOF STYLING ---
+    # --- SECTION A: PRESENTATION FIRST DISPLAY STACK (2-ACROSS RESIZED) ---
+    # Moved directly to the landing zone layout top for quick screenshotted crops
     st.subheader("📸 Teams Live Output Panel Feed")
-    st.write("2-Across structural alignment layout. Cards have expanded vertical heights and enlarged avatar framing elements.")
+    st.write("2-Across structural layout. Cards carry expanded vertical padding frames and enlarged avatar bounds.")
     
-    # 2-Across grid column split strategy
     stack_cols = st.columns(2)
     for idx, name in enumerate(STAFF_NAMES):
         active_snap = st.session_state.daily_snapshot_data[name]
         avatar_url = AVATARS.get(name, "")
         
         with stack_cols[idx % 2]:
-            # Increased vertical profile padding, larger avatar specs (85px), higher line-heights, and table sizing
             st.markdown(f"""
                 <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 250px;">
                     <div style="display: flex; align-items: center; margin-bottom: 25px;">
@@ -488,6 +453,49 @@ with tabs[2]:
                     </table>
                 </div>
             """, unsafe_allow_html=True)
+            
+    st.divider()
+
+    # --- SECTION B: HIDDEN DATA ENTRY DRAWER Accordion CONTROL ---
+    # Tucked securely under a single expander object wrapper frame to preserve presentation value
+    with st.expander("🛠️ Open Operational Data Entry Terminal", expanded=False):
+        st.write("Mass multi-row entry console system. Tab entries directly from external trackers.")
+        
+        new_answered = {}
+        new_pct = {}
+        new_outbound = {}
+        new_open = {}
+        new_close = {}
+        
+        for name in STAFF_NAMES:
+            current_vals = st.session_state.daily_snapshot_data[name]
+            r_col0, r_col1, r_col2, r_col3, r_col4, r_col5 = st.columns([1.5, 1, 1, 1, 1, 1])
+            
+            with r_col0:
+                st.markdown(f"<div style='padding-top:25px;'><strong>👤 {name}</strong></div>", unsafe_allow_html=True)
+            with r_col1:
+                new_answered[name] = st.number_input("Calls Ans", min_value=0, value=int(current_vals["answered"]), step=1, key=f"ans_{name}")
+            with r_col2:
+                new_pct[name] = st.text_input("Answer %", value=str(current_vals["pct"]), key=f"pct_{name}")
+            with r_col3:
+                new_outbound[name] = st.number_input("Outbound", min_value=0, value=int(current_vals["outbound"]), step=1, key=f"out_{name}")
+            with r_col4:
+                new_open[name] = st.number_input("SD Opened", min_value=0, value=int(current_vals["open"]), step=1, key=f"open_{name}")
+            with r_col5:
+                new_close[name] = st.number_input("SD Closed", min_value=0, value=int(current_vals["close"]), step=1, key=f"close_{name}")
+                
+        st.write("")
+        if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
+            for name in STAFF_NAMES:
+                st.session_state.daily_snapshot_data[name].update({
+                    "answered": new_answered[name],
+                    "pct": new_pct[name] if new_pct[name] else "100%",
+                    "outbound": new_outbound[name],
+                    "open": new_open[name],
+                    "close": new_close[name]
+                })
+            st.success("All operational snapshot arrays preserved in local runtime frames successfully!")
+            st.rerun()
         
     st.divider()
     st.subheader("📋 Collective Daily Snapshot Overview")
