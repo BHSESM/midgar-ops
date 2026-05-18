@@ -327,6 +327,21 @@ with tabs[1]:
         st.error(f"❌ MISSION FAILED: Total AWOL is {total_awol}m ({total_awol - max_awol:.1f}m over limit).")
     st.markdown('</div>', unsafe_allow_html=True)
 
+    sla_pct  = float(st.session_state.master_data["team_stats"]["sla_pct"])
+    goal_sla = 92.5
+
+    st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
+    st.subheader("📋 TEAM MISSION: Hold the Line on SLA")
+    st.write(f"Objective: Keep SD Tickets Within SLA at **{goal_sla}%** or above.")
+    st.progress(min(1.0, sla_pct / 100.0))
+    if sla_pct >= goal_sla:
+        st.success(f"✅ SLA HOLDING: Currently at {sla_pct:.1f}% — target met.")
+    elif sla_pct >= 88.0:
+        st.warning(f"⚠️ SLIPPING: SLA is at {sla_pct:.1f}% — push to reach {goal_sla}%.")
+    else:
+        st.error(f"❌ SLA BREACH: Currently at {sla_pct:.1f}% — immediate action needed.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # =============================================================================
 # TAB 3: TACTICAL OVERVIEW
 # =============================================================================
