@@ -110,6 +110,20 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
+    /* Profile Badge Container Styling */
+    .profile-honor-badge {
+        background: rgba(0, 255, 204, 0.15);
+        border: 1px solid #00ffcc;
+        border-radius: 6px;
+        color: #00ffcc !important;
+        font-size: 0.75rem !important;
+        font-weight: bold;
+        text-align: center;
+        padding: 4px 8px;
+        margin: 4px 0;
+        box-shadow: 0 0 8px rgba(0, 255, 204, 0.2);
+    }
+    
     /* Character Images (Default MTD Tab Views) */
     div[data-testid="stImage"] img {
         max-height: 135px !important;
@@ -238,6 +252,12 @@ def get_daily_averages(name, stats):
         "avg_close": math.floor(stats["close"] / effective_days),
     }
 
+def calculate_winners(metric, staff_list, high_is_best=True):
+    if not staff_list: return []
+    vals = {n: st.session_state.master_data[n][metric] for n in staff_list}
+    target = max(vals.values()) if high_is_best else min(vals.values())
+    return [n for n, v in vals.items() if v == target]
+
 def load_data():
     if "staff_json" in st.secrets:
         data = json.loads(st.secrets["staff_json"])
@@ -296,6 +316,22 @@ if "daily_snapshot_data" not in st.session_state:
         for name in STAFF_NAMES
     }
 
+# Pre-calculate active honor matrix mappings to feed profile badges seamlessly
+HONORS_MAP = [
+    ("📞 Inbound King/Queen", "in", True),
+    ("☎️ Outbound Ace", "out", True),
+    ("📂 Request Opener", "open", True),
+    ("✅ Ticket Crusher", "close", True),
+    ("💯 Comms Master", "ans", True),
+    ("🛡️ Always Ready", "awol", False)
+]
+
+OPERATIVE_HONORS = {name: [] for name in STAFF_NAMES}
+for title, key, is_high in HONORS_MAP:
+    winners = calculate_winners(key, STAFF_NAMES, is_high)
+    for winner in winners:
+        OPERATIVE_HONORS[winner].append(title)
+
 # --- TABS DESCRIPTOR HUD ---
 tabs = st.tabs([
     "⚔️ Active Party", "📜 Missions", "⚡ Daily Snapshot", 
@@ -329,6 +365,13 @@ with tabs[0]:
                 """, unsafe_allow_html=True)
                 
                 st.markdown(f"<center><small style='color: #bbb;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
+                
+                # Dynamic Honors Broadcast Section
+                if OPERATIVE_HONORS[name]:
+                    st.write("")
+                    for badge in OPERATIVE_HONORS[name]:
+                        st.markdown(f'<div class="profile-honor-badge">{badge}</div>', unsafe_allow_html=True)
+                    st.write("")
                 
                 st.write(f"❤️ Vitality (HP): {res['HP_Display']}")
                 st.progress(res["HP_Pct"])
@@ -501,7 +544,6 @@ with tabs[2]:
     for name in STAFF_NAMES:
         snap_item = st.session_state.daily_snapshot_data[name]
         
-        # FIX: Calculate projected dynamic daily exp and pass it through the scaling algorithm formula
         daily_exp = snap_item["answered"] + snap_item["outbound"] + snap_item["open"] + snap_item["close"]
         weight = SHIFT_WEIGHTS.get(name, 1.0)
         projected_gil = round((daily_exp / weight) ** 0.9) if daily_exp > 0 else 0
@@ -580,25 +622,19 @@ with tabs[3]:
     st.divider()
 
     st.subheader("🏆 Sector 7 Honors (Top Performers)")
-    def calculate_winners(metric, high_is_best=True):
-        if not STAFF_NAMES: return "None"
-        vals = {n: st.session_state.master_data[n][metric] for n in STAFF_NAMES}
-        target = max(vals.values()) if high_is_best else min(vals.values())
-        return ", ".join(n for n, v in vals.items() if v == target)
-
     h_col1, h_col2, h_col3 = st.columns(3)
     h_col4, h_col5, h_col6 = st.columns(3)
-    honors_list = [
-        (h_col1, "📞 Inbound King/Queen", "in", True), (h_col2, "☎️ Outbound Ace", "out", True),
-        (h_col3, "📂 Request Opener", "open", True), (h_col4, "✅ Ticket Crusher", "close", True),
-        (h_col5, "💯 Comms Master", "ans", True), (h_col6, "🛡️ Always Ready", "awol", False)
-    ]
-    for col, title, key, is_high in honors_list:
-        with col:
+    
+    honors_columns = [h_col1, h_col2, h_col3, h_col4, h_col5, h_col6]
+    for idx, (title, key, is_high) in enumerate(HONORS_MAP):
+        target_col = honors_columns[idx]
+        winners_list = calculate_winners(key, STAFF_NAMES, is_high)
+        winners_str = ", ".join(winners_list) if winners_list else "None"
+        with target_col:
             st.markdown(f"""
                 <div class="award-card">
                     <div style="color:#00ffcc; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div>
-                    <div>{calculate_winners(key, is_high)}</div>
+                    <div>{winners_str}</div>
                 </div>
             """, unsafe_allow_html=True)
 
