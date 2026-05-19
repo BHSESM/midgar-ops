@@ -715,13 +715,13 @@ with tabs[5]:
         xaxis=dict(
             showgrid=True,
             gridcolor="rgba(0, 255, 204, 0.08)", # Faded cyber-grid markers
-            tickfont=dict(color="#00ffcc", font=dict(family="Courier New")),
+            tickfont=dict(color="#00ffcc", family="Courier New"), # Flat configuration layout for Python 3.14 compatibility
             title=None
         ),
         yaxis=dict(
             showgrid=True,
             gridcolor="rgba(0, 255, 204, 0.08)",
-            tickfont=dict(color="#00ffcc", font=dict(family="Courier New")),
+            tickfont=dict(color="#00ffcc", family="Courier New"), # Flat configuration layout for Python 3.14 compatibility
             title=None
         )
     )
