@@ -110,18 +110,29 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
-    /* Profile Badge Container Styling */
+    /* Flex Grid Container for Profile Badges (Keeps heights uniform) */
+    .profile-honors-flex-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+        margin: 12px 0;
+        min-height: 52px; /* Reserves uniform space so cards don't misalign */
+        align-items: center;
+    }
+    
+    /* Compact Profile Badge Design */
     .profile-honor-badge {
-        background: rgba(0, 255, 204, 0.15);
-        border: 1px solid #00ffcc;
-        border-radius: 6px;
+        background: rgba(0, 255, 204, 0.12);
+        border: 1px solid rgba(0, 255, 204, 0.6);
+        border-radius: 4px;
         color: #00ffcc !important;
-        font-size: 0.75rem !important;
+        font-size: 0.68rem !important;
         font-weight: bold;
         text-align: center;
-        padding: 4px 8px;
-        margin: 4px 0;
-        box-shadow: 0 0 8px rgba(0, 255, 204, 0.2);
+        padding: 3px 6px;
+        box-shadow: 0 0 6px rgba(0, 255, 204, 0.15);
+        white-space: nowrap;
     }
     
     /* Character Images (Default MTD Tab Views) */
@@ -366,12 +377,16 @@ with tabs[0]:
                 
                 st.markdown(f"<center><small style='color: #bbb;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
                 
-                # Dynamic Honors Broadcast Section
-                if OPERATIVE_HONORS[name]:
-                    st.write("")
-                    for badge in OPERATIVE_HONORS[name]:
-                        st.markdown(f'<div class="profile-honor-badge">{badge}</div>', unsafe_allow_html=True)
-                    st.write("")
+                # Refactored Flexible Badges Grid Layout Component Block
+                badge_html_buffer = ""
+                for badge in OPERATIVE_HONORS[name]:
+                    badge_html_buffer += f'<div class="profile-honor-badge">{badge}</div>'
+                
+                st.markdown(f"""
+                    <div class="profile-honors-flex-container">
+                        {badge_html_buffer if badge_html_buffer else '<span style="color:#555; font-size:0.75rem; font-style:italic;">No Active Honors</span>'}
+                    </div>
+                """, unsafe_allow_html=True)
                 
                 st.write(f"❤️ Vitality (HP): {res['HP_Display']}")
                 st.progress(res["HP_Pct"])
