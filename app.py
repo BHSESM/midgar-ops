@@ -199,12 +199,10 @@ st.markdown("""
         padding: 8px 0;
     }
     .party-battle-name {
-        color: #ffffff !important;
         font-weight: bold;
         font-size: 1.1rem;
     }
     .party-battle-hp-text {
-        color: #00ffcc !important;
         font-weight: bold;
         font-size: 1.0rem;
         text-align: right;
@@ -476,20 +474,22 @@ with tabs[1]:
     sephiroth_current_hp = max(0, sephiroth_max_hp - damage_dealt)
     sephiroth_hp_pct = sephiroth_current_hp / sephiroth_max_hp
 
+    # Custom specific antagonist asset injection
+    sephiroth_profile_link = "https://github.com/BHSESM/midgar-ops/blob/main/Seph.jpg?raw=true"
+
     # Dynamic phase management layout text cues
     if sephiroth_hp_pct > 0.50:
-        boss_phase_title = "Form 1: Sephiroth (The SOLDIER Legend)"
-        boss_avatar_url = "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Vincent_Valentine_from_FFVII_Rebirth_promo_render.webp" # Fallback/Alternative or custom link
+        boss_phase_title = "Form 1: Sephiroth (SOLDIER Legend)"
         battlefield_status_flavor = "🔮 Sephiroth calmly prepares his blade... 'Is that all the strength the planet has left?'"
     elif sephiroth_hp_pct > 0.15:
-        boss_phase_title = "Form 2: Bizarro Sephiroth (Core Core Core Mutation)"
+        boss_phase_title = "Form 2: Bizarro Sephiroth (Core Mutation)"
         battlefield_status_flavor = "⚡ The battlefield distorts! Bizarro Sephiroth emerges from the deep energetic Lifestream!"
     elif sephiroth_hp_pct > 0.0:
         boss_phase_title = "FINAL Form: Safer Sephiroth (One-Winged Angel Apex)"
-        battlefield_status_flavor = "🌌 CRITICAL! *One-Winged Angel intensifies!* Sephiroth is calling down Supernova! Break his defenses immediately!"
+        battlefield_status_flavor = "🌌 CRITICAL! Sephiroth is calling down Supernova! Break his defenses immediately!"
     else:
         boss_phase_title = "💥 SEPHIROTH DEFEATED 💥"
-        battlefield_status_flavor = "✨ VICTORY FANFARE! The communications matrix is cleared. The planet is secure!"
+        battlefield_status_flavor = "✨ VICTORY FANFARE! The planet is secure! Grid colors neutralized."
 
     # 2. Main Visual Canvas Splits (Upper Battlefield Window)
     b_col1, b_col2 = st.columns([1.2, 1])
@@ -503,7 +503,7 @@ with tabs[1]:
             avatar_link = AVATARS.get(name, "")
             
             with p_sub_cols[idx % 3]:
-                # Dynamic background indicator color borders based on condition health properties
+                # Determine color conditions parameters based on status health
                 if p_res["HP_Pct"] > 0.75: border_color = "#00ffcc"
                 elif p_res["HP_Pct"] > 0.35: border_color = "#ffcc00"
                 else: border_color = "#ff4b4b"
@@ -511,7 +511,7 @@ with tabs[1]:
                 st.markdown(f"""
                     <div style="background: rgba(15, 15, 15, 0.8); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
                         <img src="{avatar_link}" style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;">
-                        <div style="font-weight: bold; font-size: 0.9rem; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{name.split(' ')[0]}</div>
+                        <div style="font-weight: bold; font-size: 0.9rem; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {border_color} !important;">{name.split(' ')[0]}</div>
                         <div style="font-size: 0.75rem; color: #aaa;">LVL {p_res['Level']}</div>
                         <div style="font-family: 'Courier New', monospace; font-size: 0.8rem; font-weight: bold; color: {border_color}; margin-top: 3px;">HP {p_res['HP_Display']}</div>
                     </div>
@@ -521,6 +521,7 @@ with tabs[1]:
         st.subheader("🔮 The Arch-Nemesis Target")
         st.markdown(f"""
             <div class="boss-profile-container">
+                <img src="{sephiroth_profile_link}" style="max-height: 180px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #ff4b4b; box-shadow: 0 0 12px rgba(255,75,75,0.5);">
                 <h3 style="margin:0; color:#ff4b4b !important;">{boss_phase_title}</h3>
                 <p style="font-size: 0.85rem; color: #888; margin: 4px 0;">Threat Status: Threat Level Omega</p>
                 <div style="font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: bold; color: #ff4b4b; margin: 10px 0;">
@@ -533,40 +534,42 @@ with tabs[1]:
 
     st.divider()
 
-    # 3. Lower Window Classic Blue Menu Box Interface Component
+    # 3. Lower Window Classic Blue Menu Box Interface Component (Updated Sleek HUD)
     st.subheader("🖥️ Shinra Command HUD Battlefield Log")
     st.markdown('<div class="battle-hud-box">', unsafe_allow_html=True)
     
-    # Header Layout Labels Row
+    # Header Layout Labels Row (Optimized)
     h_r1, h_r2, h_r3 = st.columns([2, 1, 3])
     with h_r1: st.markdown("<span style='color: #00ffcc; font-weight: bold;'>PARTY MEMBERS IN POSITION</span>", unsafe_allow_html=True)
     with h_r2: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
-    with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (ANSWER RATE % / AWOL)</span>", unsafe_allow_html=True)
+    with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (HP)</span>", unsafe_allow_html=True)
     st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
     
-    # Row Loops outputs for active tracking properties metrics
+    # Row Loops outputs for active tracking properties metrics (New Sleek UI)
     for name in STAFF_NAMES:
         p_stats = st.session_state.master_data[name]
         p_res = get_stats(p_stats)
         
-        # Determine tactical condition metrics parameters labels colors
-        if p_res["HP_Pct"] > 0.75: hp_color_hex = "#00ffcc"
-        elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#ffcc00"
-        else: hp_color_hex = "#ff4b4b"
+        # Determine tactical condition metrics parameters labels colors (Critical/OK)
+        if p_res["Current_HP_Raw"] == 0: 
+            hp_color_hex = "#ff4b4b" # KO Color
+        elif p_res["HP_Pct"] > 0.35: 
+            hp_color_hex = "#00ffcc" # Healthy/Wounded Color
+        else:
+            hp_color_hex = "#ffcc00" # Warning Color
         
         r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
         with r_c1:
-            st.markdown(f"<span class='party-battle-name'>🔹 {name}</span>", unsafe_allow_html=True)
+            st.markdown(f"<span class='party-battle-name' style='color: {hp_color_hex} !important;'>🔹 {name}</span>", unsafe_allow_html=True)
         with r_c2:
             st.markdown(f"<span style='color: #ffffff; display: block; text-align: center;'>LVL {p_res['Level']}</span>", unsafe_allow_html=True)
         with r_c3:
             st.markdown(f"""
                 <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px;">
-                    <div style="width: 140px; background-color: rgba(0,0,0,0.5); border: 1px solid #fff; height: 12px; border-radius: 2px; overflow: hidden;">
+                    <div style="width: 200px; background-color: rgba(0,0,0,0.5); border: 1px solid #fff; height: 12px; border-radius: 2px; overflow: hidden;">
                         <div style="background-color: {hp_color_hex}; width: {p_res['HP_Pct']*100}%; height: 100%;"></div>
                     </div>
-                    <span class='party-battle-hp-text' style='color: {hp_color_hex} !important;'>{p_res['Current_HP_Raw']} / {p_res['Max_HP_Raw']} HP</span>
-                    <span style='color: #888; font-size: 0.85rem;'>({p_stats['ans']}% Ans | {p_stats['awol']}m AWOL)</span>
+                    <span class='party-battle-hp-text' style='color: {hp_color_hex} !important; width: 100px; display: inline-block; text-align: right;'>{p_res['Current_HP_Raw']} / {p_res['Max_HP_Raw']} HP</span>
                 </div>
             """, unsafe_allow_html=True)
             
