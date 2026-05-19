@@ -37,7 +37,7 @@ st.markdown("""
     }
 
     /* Typography & Neon Colors */
-    h1, h2, h3, p, span, label, .stMarkdown {
+    h1, h2, h3, h4, p, span, label, .stMarkdown {
         color: #f0f0f0 !important;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
     }
@@ -176,6 +176,39 @@ st.markdown("""
         border-radius: 10px !important;
         margin-top: 15px !important;
     }
+
+    /* --- NEW BOSS BATTLE CSS STYLING OVERLAYS --- */
+    .battle-hud-box {
+        background: linear-gradient(180deg, rgba(0,0,120,0.85) 0%, rgba(0,0,40,0.95) 100%) !important;
+        border: 3px solid #ffffff !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        box-shadow: inset 0 0 15px rgba(255,255,255,0.2), 0 10px 30px rgba(0,0,0,0.9);
+        font-family: 'Courier New', monospace;
+    }
+    .boss-profile-container {
+        background: rgba(10, 10, 10, 0.85);
+        border: 2px solid #ff4b4b;
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 0 20px rgba(255,75,75,0.2);
+    }
+    .party-battle-row {
+        border-bottom: 1px solid rgba(255,255,255,0.15);
+        padding: 8px 0;
+    }
+    .party-battle-name {
+        color: #ffffff !important;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .party-battle-hp-text {
+        color: #00ffcc !important;
+        font-weight: bold;
+        font-size: 1.0rem;
+        text-align: right;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -270,7 +303,10 @@ def get_stats(stats):
         "EXP_Pct": exp_pct,
         "GIL": current_gil,
         "Next_XP": int(next_lvl_base - exp),
-        "HP_Display": f"{current_hp}/{max_hp}"
+        "HP_Display": f"{current_hp}/{max_hp}",
+        "Raw_EXP": exp,
+        "Current_HP_Raw": current_hp,
+        "Max_HP_Raw": max_hp
     }
 
 def get_daily_averages(name, stats):
@@ -373,8 +409,8 @@ for title, key, is_high in HONORS_MAP:
 
 # --- TABS DESCRIPTOR HUD ---
 tabs = st.tabs([
-    "⚔️ Active Party", "📜 Team Missions", "🐉 Side Quests", "⚡ Daily Snapshot", 
-    "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
+    "⚔️ Active Party", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests", 
+    "⚡ Daily Snapshot", "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
 ])
 
 # =============================================================================
@@ -425,10 +461,124 @@ with tabs[0]:
                 mc1.metric("Level", res["Level"])
                 mc2.metric("Wallet", f"💰 {res['GIL']}")
 
+
 # =============================================================================
-# TAB 2: TEAM MISSIONS & BOUNTIES
+# TAB 2: SEPHIROTH BOSS BATTLE (MACRO STATUS DISPLAY)
 # =============================================================================
 with tabs[1]:
+    st.title("🔥 Destiny's Crossroads: The Final Month-End Showdown")
+    st.write("Frontline operational volume is automatically channelled into physical damage outputs to bring down the legendary One-Winged Angel.")
+    
+    # 1. Damage Metrics Calculations Engine
+    total_accumulated_exp = sum(get_stats(st.session_state.master_data[n])["Raw_EXP"] for n in STAFF_NAMES)
+    damage_dealt = total_accumulated_exp * 10
+    sephiroth_max_hp = 95000
+    sephiroth_current_hp = max(0, sephiroth_max_hp - damage_dealt)
+    sephiroth_hp_pct = sephiroth_current_hp / sephiroth_max_hp
+
+    # Dynamic phase management layout text cues
+    if sephiroth_hp_pct > 0.50:
+        boss_phase_title = "Form 1: Sephiroth (The SOLDIER Legend)"
+        boss_avatar_url = "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Vincent_Valentine_from_FFVII_Rebirth_promo_render.webp" # Fallback/Alternative or custom link
+        battlefield_status_flavor = "🔮 Sephiroth calmly prepares his blade... 'Is that all the strength the planet has left?'"
+    elif sephiroth_hp_pct > 0.15:
+        boss_phase_title = "Form 2: Bizarro Sephiroth (Core Core Core Mutation)"
+        battlefield_status_flavor = "⚡ The battlefield distorts! Bizarro Sephiroth emerges from the deep energetic Lifestream!"
+    elif sephiroth_hp_pct > 0.0:
+        boss_phase_title = "FINAL Form: Safer Sephiroth (One-Winged Angel Apex)"
+        battlefield_status_flavor = "🌌 CRITICAL! *One-Winged Angel intensifies!* Sephiroth is calling down Supernova! Break his defenses immediately!"
+    else:
+        boss_phase_title = "💥 SEPHIROTH DEFEATED 💥"
+        battlefield_status_flavor = "✨ VICTORY FANFARE! The communications matrix is cleared. The planet is secure!"
+
+    # 2. Main Visual Canvas Splits (Upper Battlefield Window)
+    b_col1, b_col2 = st.columns([1.2, 1])
+    
+    with b_col1:
+        st.subheader("⚔️ Frontline Party Formations")
+        p_sub_cols = st.columns(3)
+        for idx, name in enumerate(STAFF_NAMES):
+            p_stats = st.session_state.master_data[name]
+            p_res = get_stats(p_stats)
+            avatar_link = AVATARS.get(name, "")
+            
+            with p_sub_cols[idx % 3]:
+                # Dynamic background indicator color borders based on condition health properties
+                if p_res["HP_Pct"] > 0.75: border_color = "#00ffcc"
+                elif p_res["HP_Pct"] > 0.35: border_color = "#ffcc00"
+                else: border_color = "#ff4b4b"
+                
+                st.markdown(f"""
+                    <div style="background: rgba(15, 15, 15, 0.8); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
+                        <img src="{avatar_link}" style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;">
+                        <div style="font-weight: bold; font-size: 0.9rem; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{name.split(' ')[0]}</div>
+                        <div style="font-size: 0.75rem; color: #aaa;">LVL {p_res['Level']}</div>
+                        <div style="font-family: 'Courier New', monospace; font-size: 0.8rem; font-weight: bold; color: {border_color}; margin-top: 3px;">HP {p_res['HP_Display']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+    with b_col2:
+        st.subheader("🔮 The Arch-Nemesis Target")
+        st.markdown(f"""
+            <div class="boss-profile-container">
+                <h3 style="margin:0; color:#ff4b4b !important;">{boss_phase_title}</h3>
+                <p style="font-size: 0.85rem; color: #888; margin: 4px 0;">Threat Status: Threat Level Omega</p>
+                <div style="font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: bold; color: #ff4b4b; margin: 10px 0;">
+                    HP: {sephiroth_current_hp:,} / {sephiroth_max_hp:,}
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        st.progress(sephiroth_hp_pct)
+        st.markdown(f"<p style='text-align: center; font-style: italic; color: #ffcc00 !important;'>{battlefield_status_flavor}</p>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # 3. Lower Window Classic Blue Menu Box Interface Component
+    st.subheader("🖥️ Shinra Command HUD Battlefield Log")
+    st.markdown('<div class="battle-hud-box">', unsafe_allow_html=True)
+    
+    # Header Layout Labels Row
+    h_r1, h_r2, h_r3 = st.columns([2, 1, 3])
+    with h_r1: st.markdown("<span style='color: #00ffcc; font-weight: bold;'>PARTY MEMBERS IN POSITION</span>", unsafe_allow_html=True)
+    with h_r2: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
+    with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (ANSWER RATE % / AWOL)</span>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
+    
+    # Row Loops outputs for active tracking properties metrics
+    for name in STAFF_NAMES:
+        p_stats = st.session_state.master_data[name]
+        p_res = get_stats(p_stats)
+        
+        # Determine tactical condition metrics parameters labels colors
+        if p_res["HP_Pct"] > 0.75: hp_color_hex = "#00ffcc"
+        elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#ffcc00"
+        else: hp_color_hex = "#ff4b4b"
+        
+        r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
+        with r_c1:
+            st.markdown(f"<span class='party-battle-name'>🔹 {name}</span>", unsafe_allow_html=True)
+        with r_c2:
+            st.markdown(f"<span style='color: #ffffff; display: block; text-align: center;'>LVL {p_res['Level']}</span>", unsafe_allow_html=True)
+        with r_c3:
+            st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px;">
+                    <div style="width: 140px; background-color: rgba(0,0,0,0.5); border: 1px solid #fff; height: 12px; border-radius: 2px; overflow: hidden;">
+                        <div style="background-color: {hp_color_hex}; width: {p_res['HP_Pct']*100}%; height: 100%;"></div>
+                    </div>
+                    <span class='party-battle-hp-text' style='color: {hp_color_hex} !important;'>{p_res['Current_HP_Raw']} / {p_res['Max_HP_Raw']} HP</span>
+                    <span style='color: #888; font-size: 0.85rem;'>({p_stats['ans']}% Ans | {p_stats['awol']}m AWOL)</span>
+                </div>
+            """, unsafe_allow_html=True)
+            
+    st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
+    st.markdown(f"<p style='margin:0; font-size:0.95rem; color:#aaa;'>💬 <strong>TACTICAL SENSORS REPORT:</strong> Total Month-To-Date collective damage output computed at <strong>{damage_dealt:,} points</strong>. Target Sephiroth has sustained <strong>{(1.0 - sephiroth_hp_pct)*100:.1f}%</strong> volume degradation from direct frontline encounters.</p>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =============================================================================
+# TAB 3: TEAM MISSIONS & BOUNTIES
+# =============================================================================
+with tabs[2]:
     st.title("📜 Sector 7 Bounty Board")
     
     # Mission 1
@@ -480,9 +630,9 @@ with tabs[1]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 3: SIDE QUEST CHRONICLES BOARD
+# TAB 4: SIDE QUEST CHRONICLES BOARD
 # =============================================================================
-with tabs[2]:
+with tabs[3]:
     st.title("🐉 Tavern Side Quests Bulletin")
     st.write("Track active offline operations and view historical rewards logged by the team.")
     
@@ -533,9 +683,9 @@ with tabs[2]:
             st.write("No historical side quests recorded for this tactical frame.")
 
 # =============================================================================
-# TAB 4: DAILY SNAPSHOT HUD OPERATIONAL HUB
+# TAB 5: DAILY SNAPSHOT HUD OPERATIONAL HUB
 # =============================================================================
-with tabs[3]:
+with tabs[4]:
     st.title("⚡ Daily Tactical Snapshot Node")
     st.subheader("📸 Teams Live Output Panel Feed")
     
@@ -618,9 +768,9 @@ with tabs[3]:
     st.table(pd.DataFrame(daily_rows_matrix))
 
 # =============================================================================
-# TAB 5: TACTICAL OVERVIEW
+# TAB 6: TACTICAL OVERVIEW
 # =============================================================================
-with tabs[4]:
+with tabs[5]:
     st.title("📊 Tactical Command Overview")
     st.subheader("📋 MTD Raw Stats")
     data_rows = []
@@ -683,16 +833,16 @@ with tabs[4]:
             st.markdown(f'<div class="award-card"><div style="color:#00ffcc; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div><div>{winners_str}</div></div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 6: MAKO VOLUME HEATMAP
+# TAB 7: MAKO VOLUME HEATMAP
 # =============================================================================
-with tabs[5]:
+with tabs[6]:
     st.title("🔥 Mako Reactor Traffic Flow")
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = st.session_state.master_data["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
     
     # --- TRANSMUTED TRANSPARENT MAKO SURGE GRAPH ---
-    st.subheader("📊 Mako Core Traffic Surge Graph")
+    st.subheader("📊 Mako core Traffic Surge graph")
     
     # Process dictionary directly into a chronological layout
     df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
@@ -741,9 +891,9 @@ with tabs[5]:
     st.table(pd.DataFrame([o_stats], columns=OUTCOME_KEYS))
 
 # =============================================================================
-# TAB 7: WALL MARKET (SHOP)
+# TAB 8: WALL MARKET (SHOP)
 # =============================================================================
-with tabs[6]:
+with tabs[7]:
     st.title("💰 Wall Market Item Shop")
     shop_ui_col1, shop_ui_col2 = st.columns([1, 2])
     
@@ -776,9 +926,9 @@ with tabs[6]:
         else: st.write("No items purchased yet.")
 
 # =============================================================================
-# TAB 8: ADMIN COMMAND CENTER
+# TAB 9: ADMIN COMMAND CENTER
 # =============================================================================
-with tabs[7]:
+with tabs[8]:
     st.header("🔐 Admin Command Center")
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
     vault_password = st.secrets.get("admin_password", "shinra2026")
