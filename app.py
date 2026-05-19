@@ -692,7 +692,7 @@ with tabs[5]:
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
     
     # --- TRANSMUTED TRANSPARENT MAKO SURGE GRAPH ---
-    st.subheader("📊 Live Mako Core Traffic Surge Graph")
+    st.subheader("📊 Mako Core Traffic Surge Graph")
     
     # Process dictionary directly into a chronological layout
     df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
