@@ -421,7 +421,6 @@ with tabs[2]:
         avatar_url = AVATARS.get(name, "")
         
         with stack_cols[idx % 2]:
-            # FIX: Swapped out circle masks for rounded corner rectangles, using object-fit: contain to preserve the rendering format
             st.markdown(f"""
                 <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 230px;">
                     <div style="display: flex; align-items: center; margin-bottom: 22px;">
@@ -501,13 +500,20 @@ with tabs[2]:
     daily_rows_matrix = []
     for name in STAFF_NAMES:
         snap_item = st.session_state.daily_snapshot_data[name]
+        
+        # FIX: Calculate projected dynamic daily exp and pass it through the scaling algorithm formula
+        daily_exp = snap_item["answered"] + snap_item["outbound"] + snap_item["open"] + snap_item["close"]
+        weight = SHIFT_WEIGHTS.get(name, 1.0)
+        projected_gil = round((daily_exp / weight) ** 0.9) if daily_exp > 0 else 0
+        
         daily_rows_matrix.append({
             "Operative": name,
             "Calls Answered": snap_item["answered"],
             "Answer Rate": snap_item["pct"],
             "Outbound Calls": snap_item["outbound"],
             "SD Opened": snap_item["open"],
-            "SD Closed": snap_item["close"]
+            "SD Closed": snap_item["close"],
+            "Projected Daily GIL": f"💰 {projected_gil}"
         })
     st.table(pd.DataFrame(daily_rows_matrix))
 
