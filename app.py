@@ -474,8 +474,8 @@ with tabs[1]:
     sephiroth_current_hp = max(0, sephiroth_max_hp - damage_dealt)
     sephiroth_hp_pct = sephiroth_current_hp / sephiroth_max_hp
 
-    # Custom specific antagonist asset injection
-    sephiroth_profile_link = "https://github.com/BHSESM/midgar-ops/blob/main/Seph.jpg?raw=true"
+    # Custom transparent antagonist asset injection
+    sephiroth_profile_link = "https://github.com/BHSESM/midgar-ops/blob/c0fcf5cc9ab880e330b5d3314d3e10b6afdee8fe/Sephtransp.png?raw=true"
 
     # Dynamic phase management layout text cues
     if sephiroth_hp_pct > 0.50:
