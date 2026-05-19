@@ -4,6 +4,7 @@ import math
 import json
 import re
 from datetime import datetime
+import plotly.express as px # Added for high-fidelity styled charting mechanics
 
 # --- 1. RPG CONFIGURATION & PAGE SETUP ---
 st.set_page_config(
@@ -497,7 +498,7 @@ with tabs[2]:
                 st.markdown(f"""
                     <div class="quest-card" style="border-left: 5px solid #00ffcc;">
                         <span style="float:right; color:#00ffcc; font-weight:bold;">⏳ ACTIVE</span>
-                        h4 style="margin:0; color:#fff;">{aq['title']}</h4>
+                        <h4 style="margin:0; color:#fff;">{aq['title']}</h4>
                         <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Operative: <strong>{name}</strong></p>
                         <p style="margin:4px 0; font-size:0.85rem;">Allocated Duration: <strong>{aq['minutes']} mins</strong></p>
                         <small style="color:#666;">Commenced: {aq['timestamp']}</small>
@@ -690,10 +691,49 @@ with tabs[5]:
     v_stats = st.session_state.master_data["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
     
-    # --- LIVE MAKO SURGE GRAPH ---
+    # --- TRANSMUTED TRANSPARENT MAKO SURGE GRAPH ---
     st.subheader("📊 Live Mako Core Traffic Surge Graph")
-    df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"]).set_index("Time Slot")
-    st.area_chart(df_vol)
+    
+    # Process dictionary directly into a chronological layout
+    df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
+    
+    # Generate interactive area wave through Plotly Express engine
+    fig = px.area(
+        df_vol, 
+        x="Time Slot", 
+        y="Call Volume",
+        color_discrete_sequence=["rgba(0, 255, 204, 0.45)"] # Neon Mako Green filling
+    )
+    
+    # Apply intense deep-space styling & full alpha transparency overlays
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",  # Purges canvas box background completely
+        plot_bgcolor="rgba(0,0,0,0)",   # Purges interior tracking graph fill
+        margin=dict(l=10, r=10, t=15, b=10),
+        height=280,
+        showlegend=False,
+        xaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(0, 255, 204, 0.08)", # Faded cyber-grid markers
+            tickfont=dict(color="#00ffcc", font=dict(family="Courier New")),
+            title=None
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(0, 255, 204, 0.08)",
+            tickfont=dict(color="#00ffcc", font=dict(family="Courier New")),
+            title=None
+        )
+    )
+    
+    # Polish line aesthetic bounds
+    fig.update_traces(
+        line=dict(color="rgba(0, 255, 204, 1)", width=3), # Striking solid neon perimeter
+        hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>"
+    )
+    
+    # Commit chart safely back inside container constraints
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
     st.divider()
     st.subheader("📊 Global Outcome Percentages")
