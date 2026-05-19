@@ -497,7 +497,7 @@ with tabs[2]:
                 st.markdown(f"""
                     <div class="quest-card" style="border-left: 5px solid #00ffcc;">
                         <span style="float:right; color:#00ffcc; font-weight:bold;">⏳ ACTIVE</span>
-                        <h4 style="margin:0; color:#fff;">{aq['title']}</h4>
+                        h4 style="margin:0; color:#fff;">{aq['title']}</h4>
                         <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Operative: <strong>{name}</strong></p>
                         <p style="margin:4px 0; font-size:0.85rem;">Allocated Duration: <strong>{aq['minutes']} mins</strong></p>
                         <small style="color:#666;">Commenced: {aq['timestamp']}</small>
@@ -689,6 +689,11 @@ with tabs[5]:
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = st.session_state.master_data["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
+    
+    # --- LIVE MAKO SURGE GRAPH ---
+    st.subheader("📊 Live Mako Core Traffic Surge Graph")
+    df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"]).set_index("Time Slot")
+    st.area_chart(df_vol)
     
     st.divider()
     st.subheader("📊 Global Outcome Percentages")
@@ -911,7 +916,7 @@ with tabs[7]:
 
         st.divider()
 
-        # --- PANEL MODULE 4: LEDGER CORRECTIONS MODERATOR BLOCK (NEW) ---
+        # --- PANEL MODULE 4: LEDGER CORRECTIONS MODERATOR BLOCK ---
         st.subheader("🚨 Module 4: Shinra Financial Audit & Ledger Deletions Panel")
         aud_col1, aud_col2 = st.columns(2)
         
