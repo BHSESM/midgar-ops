@@ -336,6 +336,8 @@ for _name in list(st.session_state.master_data.keys()):
         st.session_state.master_data[_name].setdefault("days_worked", 0)
         st.session_state.master_data[_name].setdefault("side_quests", [])
         st.session_state.master_data[_name].setdefault("active_quest", {})
+        st.session_state.master_data[_name].setdefault("history", [])
+        st.session_state.master_data[_name].setdefault("spent", 0)
 
 st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
 st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
@@ -712,7 +714,8 @@ with tabs[6]:
             if buyer_stats["GIL"] >= perk_price:
                 st.session_state.master_data[current_buyer]["spent"] += perk_price
                 now_str = datetime.now().strftime("%d/%m %H:%M")
-                st.session_state.master_data[current_buyer].setdefault("history", []).insert(0, f"{now_str}: Bought {perk_name}")
+                # Structure purchase log metadata clearly
+                st.session_state.master_data[current_buyer]["history"].insert(0, f"{now_str}: Bought {perk_name} cost_{perk_price}")
                 st.success(f"Authorized! {perk_name} acquired.")
                 st.rerun()
             else: st.error("Insufficient GIL.")
@@ -722,7 +725,9 @@ with tabs[6]:
         log_view_name = st.selectbox("View History For:", STAFF_NAMES)
         logs = st.session_state.master_data[log_view_name].get("history", [])
         if logs:
-            for entry in logs: st.write(f"• {entry}")
+            for entry in logs:
+                clean_entry = entry.split(" cost_")[0]
+                st.write(f"• {clean_entry}")
         else: st.write("No items purchased yet.")
 
 # =============================================================================
@@ -903,6 +908,65 @@ with tabs[7]:
             for key in OUTCOME_KEYS: st.session_state.master_data["outcome_stats"][key] = o_inputs[key]
             st.success("All traffic flows saved!")
             st.rerun()
+
+        st.divider()
+
+        # --- PANEL MODULE 4: LEDGER CORRECTIONS MODERATOR BLOCK (NEW) ---
+        st.subheader("🚨 Module 4: Shinra Financial Audit & Ledger Deletions Panel")
+        aud_col1, aud_col2 = st.columns(2)
+        
+        with aud_col1:
+            st.markdown("##### **🐉 Roll Back Completed Side Quests**")
+            sq_del_user = st.selectbox("Select Operative to Audit Quests", STAFF_NAMES, key="sq_del_usr")
+            user_quests = st.session_state.master_data[sq_del_user].get("side_quests", [])
+            
+            if user_quests:
+                quest_options = []
+                for idx, q_obj in enumerate(user_quests):
+                    quest_options.append(f"{idx} | {q_obj['title']} (+{q_obj['simulated_exp']} XP, +{q_obj['gil_reward']} GIL)")
+                
+                selected_quest_str = st.selectbox("Select Target Quest to Erase", quest_options)
+                target_quest_idx = int(selected_quest_str.split(" | ")[0])
+                
+                if st.button("💥 Purge Quest & Deduct Rewards", type="primary"):
+                    removed_quest = st.session_state.master_data[sq_del_user]["side_quests"].pop(target_quest_idx)
+                    st.success(f"Successfully voided '{removed_quest['title']}'! Deducted {removed_quest['simulated_exp']} EXP and {removed_quest['gil_reward']} GIL from {sq_del_user}.")
+                    st.rerun()
+            else:
+                st.write("This operative has no completed side quests registered in this frame ledger.")
+                
+        with aud_col2:
+            st.markdown("##### **💰 Void Wall Market Purchases & Issue Refunds**")
+            shop_del_user = st.selectbox("Select Shopper to Audit Invoices", STAFF_NAMES, key="shop_del_usr")
+            user_history = st.session_state.master_data[shop_del_user].get("history", [])
+            
+            # Filter history entries that explicitly contain cost flags
+            purchase_entries = [item for item in user_history if " cost_" in item]
+            
+            if purchase_entries:
+                purchase_options = []
+                for idx, item in enumerate(purchase_entries):
+                    clean_title = item.split(" cost_")[0]
+                    cost_val = item.split(" cost_")[1]
+                    purchase_options.append(f"{idx} | {clean_title} (Refund Value: {cost_val} GIL)")
+                
+                selected_item_str = st.selectbox("Select Target Order to Void", purchase_options)
+                target_item_idx_in_filtered = int(selected_item_str.split(" | ")[0])
+                raw_string_to_remove = purchase_entries[target_item_idx_in_filtered]
+                
+                if st.button("💸 Void Purchase & Refund GIL", type="primary"):
+                    # Find exact cost value match
+                    extracted_cost = int(raw_string_to_remove.split(" cost_")[1])
+                    
+                    # Remove it directly from their primary list string log array
+                    st.session_state.master_data[shop_del_user]["history"].remove(raw_string_to_remove)
+                    # Refund the ledger currency points wallet variables
+                    st.session_state.master_data[shop_del_user]["spent"] -= extracted_cost
+                    
+                    st.success(f"Order Voided! Refunded +💰 {extracted_cost} GIL back into {shop_del_user}'s wallet.")
+                    st.rerun()
+            else:
+                st.write("This operative has no refundable Wall Market ledger interactions logged.")
 
         st.divider()
 
