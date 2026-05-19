@@ -497,7 +497,7 @@ with tabs[2]:
                         <span style="float:right; color:#00ffcc; font-weight:bold;">⏳ ACTIVE</span>
                         <h4 style="margin:0; color:#fff;">{aq['title']}</h4>
                         <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Operative: <strong>{name}</strong></p>
-                        <p style="margin:4px 0; font-size:0.85rem;">Allocated Duration: <strong>{aq['minutes']} mins</strong> | Target Boost: <strong>{aq['inflation']}x</strong></p>
+                        <p style="margin:4px 0; font-size:0.85rem;">Allocated Duration: <strong>{aq['minutes']} mins</strong></p>
                         <small style="color:#666;">Commenced: {aq['timestamp']}</small>
                     </div>
                 """, unsafe_allow_html=True)
@@ -518,13 +518,12 @@ with tabs[2]:
                             </span>
                             <h4 style="margin:0; color:#fff;">{q['title']}</h4>
                             <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Completed by: <strong>{name}</strong></p>
-                            <p style="margin:4px 0; font-size:0.85rem;">Time spent: <strong>{q['minutes']} mins</strong> at <strong>{q['inflation']}x inflation</strong></p>
+                            <p style="margin:4px 0; font-size:0.85rem;">Time spent compensating: <strong>{q['minutes']} mins</strong></p>
                             <small style="color:#666;">Logged: {q['timestamp']}</small>
                         </div>
                     """
                 })
         if completed_quests_list:
-            # Render chronological order
             for q_card in reversed(completed_quests_list):
                 st.markdown(q_card["html"], unsafe_allow_html=True)
         else:
@@ -737,7 +736,7 @@ with tabs[7]:
     if admin_access == vault_password:
         st.success("Access Granted. Systems online.")
 
-        # --- PANEL MODULE 0: SIDE QUEST CONSOLE (NEW) ---
+        # --- PANEL MODULE 0: SIDE QUEST CONSOLE ---
         st.subheader("🐉 Module 0: Tavern Dispatch Side Quest Control Board")
         
         sq_adm_col1, sq_adm_col2 = st.columns(2)
@@ -747,9 +746,7 @@ with tabs[7]:
             q_target = st.selectbox("Target Operative", STAFF_NAMES, key="q_tgt")
             q_title = st.text_input("Quest Objective Title (Free Text)", placeholder="e.g., Auditing Archive Logs / Writing SOP Guide")
             q_mins = st.number_input("Quest Duration (Minutes spent off-line)", min_value=1, value=60, step=1)
-            q_inflation = st.slider("GIL / EXP Reward Inflation Multiplier", min_value=1.0, max_value=2.0, value=1.2, step=0.05)
             
-            # Show preview of run-rate calculations
             tgt_stats = st.session_state.master_data[q_target]
             tgt_avgs = get_daily_averages(q_target, tgt_stats)
             
@@ -763,7 +760,7 @@ with tabs[7]:
                 if st.button("🚀 Deploy to Active Quest Board"):
                     if q_title:
                         st.session_state.master_data[q_target]["active_quest"] = {
-                            "title": q_title, "minutes": int(q_mins), "inflation": float(q_inflation),
+                            "title": q_title, "minutes": int(q_mins), "inflation": 1.0,
                             "timestamp": datetime.now().strftime("%d/%m %H:%M")
                         }
                         st.success(f"{q_target} dispatched out to: '{q_title}'")
@@ -782,22 +779,19 @@ with tabs[7]:
             active_q_obj = st.session_state.master_data[q_complete_target].get("active_quest", {})
             
             if active_q_obj and active_q_obj.get("title"):
-                st.info(f"**Quest:** {active_q_obj['title']}\n\n**Logged:** {active_q_obj['minutes']} mins at {active_q_obj['inflation']}x boost")
+                st.info(f"**Quest:** {active_q_obj['title']}\n\n**Logged:** {active_q_obj['minutes']} mins (1:1 Frontline Match)")
                 
                 if st.button("🏆 Mark Completed & Inject Rewards"):
-                    # Process Ghost Frontliner Run-Rate Payout calculations
                     m_stats = st.session_state.master_data[q_complete_target]
                     avgs = get_daily_averages(q_complete_target, m_stats)
                     
-                    # Safe validation fallback if day metrics are completely missing 
                     base_in = avgs["avg_in"] if avgs["avg_in"] is not None else 15
                     base_out = avgs["avg_out"] if avgs["avg_out"] is not None else 10
                     base_open = avgs["avg_open"] if avgs["avg_open"] is not None else 5
                     base_close = avgs["avg_close"] if avgs["avg_close"] is not None else 5
                     
-                    # Convert daily run rate parameters into explicit per-minute configurations (8 hr standard block)
                     m_duration = active_q_obj["minutes"]
-                    boost = active_q_obj["inflation"]
+                    boost = 1.0
                     
                     sim_in = (base_in / 480.0) * m_duration * boost
                     sim_out = (base_out / 480.0) * m_duration * boost
@@ -810,7 +804,6 @@ with tabs[7]:
                     calculated_gil_bonus = round((simulated_exp_sum) ** 0.9)
                     if calculated_gil_bonus < 1: calculated_gil_bonus = max(1, round(simulated_exp_sum * 0.8))
                     
-                    # Wrap object item data structure package
                     completed_quest_payload = {
                         "title": active_q_obj["title"],
                         "minutes": m_duration,
@@ -820,9 +813,8 @@ with tabs[7]:
                         "timestamp": datetime.now().strftime("%d/%m %H:%M")
                     }
                     
-                    # Save out parameters directly to tracking lists
                     st.session_state.master_data[q_complete_target]["side_quests"].append(completed_quest_payload)
-                    st.session_state.master_data[q_complete_target]["active_quest"] = {} # Purge active row element
+                    st.session_state.master_data[q_complete_target]["active_quest"] = {}
                     
                     st.success(f"Quest Complete! Paid out +{simulated_exp_sum} EXP and +💰 {calculated_gil_bonus} GIL to {q_complete_target}.")
                     st.rerun()
