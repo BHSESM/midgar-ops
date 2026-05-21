@@ -4,7 +4,8 @@ import math
 import json
 import re
 from datetime import datetime
-import plotly.express as px # Added for high-fidelity styled charting mechanics
+import plotly.express as px
+import plotly.graph_objects as go
 
 # --- 1. RPG CONFIGURATION & PAGE SETUP ---
 st.set_page_config(
@@ -225,7 +226,7 @@ TITLES = [
     "Turk-in-Training 💼", "Materia Engineer 💠", "Junon Operative ⚙️", 
     "Rocket Town Specialist 🚀", "Nibelheim Technician 🔩", "SOLDIER Tech 3rd Class ⚔️", 
     "SOLDIER Tech 2nd Class ⚔️", "SOLDIER Tech 1st Class ⚔️", "Midgar Hero 🛡️", 
-    "Planet’s Defender 🌿", "Lifestream Sage 💫", "Ancient of the LAN ✨"
+    "Planet's Defender 🌿", "Lifestream Sage 💫", "Ancient of the LAN ✨"
 ]
 
 SHOP_ITEMS = {
@@ -261,17 +262,14 @@ OUTCOME_KEYS = [
 
 # --- 4. CORE ENGINE FUNCTIONS ---
 def get_stats(stats):
-    # Frontline Volume EXP
     frontline_exp = stats["in"] + stats["out"] + stats["open"] + stats["close"]
     
-    # Calculate Side Quest Injectors
     side_quest_exp = 0
     side_quest_gil = 0
     for quest in stats.get("side_quests", []):
         side_quest_exp += quest.get("simulated_exp", 0)
         side_quest_gil += quest.get("gil_reward", 0)
         
-    # Total combined systems logic values
     exp = frontline_exp + side_quest_exp
     level = int(math.sqrt(exp / 50))
     rank = TITLES[min(max(level - 1, 0), len(TITLES) - 1)]
@@ -287,7 +285,6 @@ def get_stats(stats):
     current_hp = max(0, max_hp - damage)
     hp_pct = current_hp / max_hp if max_hp > 0 else 0
     
-    # Wallet Economy Formula (Frontline base + Side Quest cash injection)
     weight = stats.get("weight", 1.0)
     frontline_gil = round((frontline_exp / weight) ** 0.9) if frontline_exp > 0 else 0
     
@@ -365,7 +362,6 @@ def load_data():
 if "master_data" not in st.session_state:
     st.session_state.master_data = load_data()
 
-# Verification loop for verification of structural dictionaries
 for _name in list(st.session_state.master_data.keys()):
     if _name not in ["team_stats", "volume_stats", "outcome_stats"]:
         st.session_state.master_data[_name].setdefault("days_worked", 0)
@@ -408,7 +404,8 @@ for title, key, is_high in HONORS_MAP:
 # --- TABS DESCRIPTOR HUD ---
 tabs = st.tabs([
     "⚔️ Active Party", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests", 
-    "⚡ Daily Snapshot", "📊 Tactical Overview", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
+    "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts",
+    "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
 ])
 
 # =============================================================================
@@ -461,23 +458,20 @@ with tabs[0]:
 
 
 # =============================================================================
-# TAB 2: SEPHIROTH BOSS BATTLE (MACRO STATUS DISPLAY)
+# TAB 2: SEPHIROTH BOSS BATTLE
 # =============================================================================
 with tabs[1]:
     st.title("🔥 Destiny's Crossroads: The Final Month-End Showdown")
     st.write("Frontline operational volume is automatically channelled into physical damage outputs to bring down the legendary One-Winged Angel.")
     
-    # 1. Damage Metrics Calculations Engine
     total_accumulated_exp = sum(get_stats(st.session_state.master_data[n])["Raw_EXP"] for n in STAFF_NAMES)
     damage_dealt = total_accumulated_exp * 10
     sephiroth_max_hp = 95000
     sephiroth_current_hp = max(0, sephiroth_max_hp - damage_dealt)
     sephiroth_hp_pct = sephiroth_current_hp / sephiroth_max_hp
 
-    # Custom transparent antagonist asset injection
     sephiroth_profile_link = "https://github.com/BHSESM/midgar-ops/blob/c0fcf5cc9ab880e330b5d3314d3e10b6afdee8fe/Sephtransp.png?raw=true"
 
-    # Dynamic phase management layout text cues
     if sephiroth_hp_pct > 0.50:
         boss_phase_title = "Form 1: Sephiroth (SOLDIER Legend)"
         battlefield_status_flavor = "🔮 Sephiroth calmly prepares his blade... 'Is that all the strength the planet has left?'"
@@ -491,7 +485,6 @@ with tabs[1]:
         boss_phase_title = "💥 SEPHIROTH DEFEATED 💥"
         battlefield_status_flavor = "✨ VICTORY FANFARE! The planet is secure! Grid colors neutralized."
 
-    # 2. Main Visual Canvas Splits (Upper Battlefield Window)
     b_col1, b_col2 = st.columns([1.2, 1])
     
     with b_col1:
@@ -503,7 +496,6 @@ with tabs[1]:
             avatar_link = AVATARS.get(name, "")
             
             with p_sub_cols[idx % 3]:
-                # Determine color conditions parameters based on status health
                 if p_res["HP_Pct"] > 0.75: border_color = "#00ffcc"
                 elif p_res["HP_Pct"] > 0.35: border_color = "#ffcc00"
                 else: border_color = "#ff4b4b"
@@ -534,29 +526,25 @@ with tabs[1]:
 
     st.divider()
 
-    # 3. Lower Window Classic Blue Menu Box Interface Component (Updated Sleek HUD)
     st.subheader("🖥️ Shinra Command HUD Battlefield Log")
     st.markdown('<div class="battle-hud-box">', unsafe_allow_html=True)
     
-    # Header Layout Labels Row (Optimized)
     h_r1, h_r2, h_r3 = st.columns([2, 1, 3])
     with h_r1: st.markdown("<span style='color: #00ffcc; font-weight: bold;'>PARTY MEMBERS IN POSITION</span>", unsafe_allow_html=True)
     with h_r2: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
     with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (HP)</span>", unsafe_allow_html=True)
     st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
     
-    # Row Loops outputs for active tracking properties metrics (New Sleek UI)
     for name in STAFF_NAMES:
         p_stats = st.session_state.master_data[name]
         p_res = get_stats(p_stats)
         
-        # Determine tactical condition metrics parameters labels colors (Critical/OK)
         if p_res["Current_HP_Raw"] == 0: 
-            hp_color_hex = "#ff4b4b" # KO Color
+            hp_color_hex = "#ff4b4b"
         elif p_res["HP_Pct"] > 0.35: 
-            hp_color_hex = "#00ffcc" # Healthy/Wounded Color
+            hp_color_hex = "#00ffcc"
         else:
-            hp_color_hex = "#ffcc00" # Warning Color
+            hp_color_hex = "#ffcc00"
         
         r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
         with r_c1:
@@ -584,7 +572,6 @@ with tabs[1]:
 with tabs[2]:
     st.title("📜 Sector 7 Bounty Board")
     
-    # Mission 1
     total_out = sum(st.session_state.master_data[n]["out"] for n in STAFF_NAMES)
     goal_out = 500
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -596,7 +583,6 @@ with tabs[2]:
     else: st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Mission 2
     avg_ans = sum(st.session_state.master_data[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
     goal_ans = 98.0
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -608,7 +594,6 @@ with tabs[2]:
     else: st.error(f"❌ CRITICAL: Average is below safety threshold at {avg_ans:.1f}%")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Mission 3
     total_awol = sum(st.session_state.master_data[n]["awol"] for n in STAFF_NAMES)
     max_awol = 5.0
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -619,7 +604,6 @@ with tabs[2]:
     else: st.error(f"❌ MISSION FAILED: Total AWOL is {total_awol}m ({total_awol - max_awol:.1f}m over limit).")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Mission 4
     sla_pct = float(st.session_state.master_data["team_stats"]["sla_pct"])
     goal_sla = 92.5
     st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
@@ -686,7 +670,7 @@ with tabs[3]:
             st.write("No historical side quests recorded for this tactical frame.")
 
 # =============================================================================
-# TAB 5: DAILY SNAPSHOT HUD OPERATIONAL HUB
+# TAB 5: DAILY SNAPSHOT HUD
 # =============================================================================
 with tabs[4]:
     st.title("⚡ Daily Tactical Snapshot Node")
@@ -836,56 +820,148 @@ with tabs[5]:
             st.markdown(f'<div class="award-card"><div style="color:#00ffcc; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div><div>{winners_str}</div></div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 7: MAKO VOLUME HEATMAP
+# TAB 7: PERFORMANCE CHARTS (NEW)
 # =============================================================================
 with tabs[6]:
+    st.title("📈 Operative Performance Charts")
+    st.write("Visual breakdown of MTD totals and weighted daily averages across all operatives.")
+
+    agent_names = [n.split(" ")[0] for n in STAFF_NAMES]
+
+    def make_bar(title, values, color, y_label):
+        fig = go.Figure(go.Bar(
+            x=agent_names,
+            y=values,
+            marker_color=color,
+            text=values,
+            textposition="outside",
+            textfont=dict(color="#f0f0f0", family="Courier New", size=13)
+        ))
+        fig.update_layout(
+            title=dict(
+                text=title,
+                font=dict(color="#00ffcc", size=16, family="Courier New"),
+                x=0
+            ),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=50, b=10),
+            height=270,
+            showlegend=False,
+            xaxis=dict(
+                tickfont=dict(color="#00ffcc", family="Courier New"),
+                gridcolor="rgba(0, 255, 204, 0.06)",
+                title=None
+            ),
+            yaxis=dict(
+                tickfont=dict(color="#aaa", family="Courier New"),
+                gridcolor="rgba(0, 255, 204, 0.08)",
+                title=dict(text=y_label, font=dict(color="#aaa", size=11)),
+                rangemode="tozero"
+            )
+        )
+        return fig
+
+    # --- MTD TOTALS ---
+    st.subheader("📊 Month-To-Date Totals")
+
+    mtd_in    = [st.session_state.master_data[n]["in"]    for n in STAFF_NAMES]
+    mtd_out   = [st.session_state.master_data[n]["out"]   for n in STAFF_NAMES]
+    mtd_open  = [st.session_state.master_data[n]["open"]  for n in STAFF_NAMES]
+    mtd_close = [st.session_state.master_data[n]["close"] for n in STAFF_NAMES]
+
+    st.plotly_chart(
+        make_bar("Inbound Calls — MTD", mtd_in, "#00ffcc", "Calls"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+    st.plotly_chart(
+        make_bar("Outbound Calls — MTD", mtd_out, "#0099ff", "Calls"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+    st.plotly_chart(
+        make_bar("Tickets Opened — MTD", mtd_open, "#ff4b4b", "Tickets"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+    st.plotly_chart(
+        make_bar("Tickets Closed — MTD", mtd_close, "#ffcc00", "Tickets"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+
+    st.divider()
+
+    # --- WEIGHTED DAILY AVERAGES ---
+    st.subheader("📅 Weighted Daily Averages")
+
+    avg_in_vals, avg_out_vals, avg_open_vals, avg_close_vals = [], [], [], []
+    for name in STAFF_NAMES:
+        avgs = get_daily_averages(name, st.session_state.master_data[name])
+        avg_in_vals.append(avgs["avg_in"]    if avgs["avg_in"]    is not None else 0)
+        avg_out_vals.append(avgs["avg_out"]  if avgs["avg_out"]   is not None else 0)
+        avg_open_vals.append(avgs["avg_open"]  if avgs["avg_open"]  is not None else 0)
+        avg_close_vals.append(avgs["avg_close"] if avgs["avg_close"] is not None else 0)
+
+    st.plotly_chart(
+        make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#00ffcc", "Calls/day"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+    st.plotly_chart(
+        make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#0099ff", "Calls/day"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+    st.plotly_chart(
+        make_bar("Avg Tickets Opened — Daily (Weighted)", avg_open_vals, "#ff4b4b", "Tickets/day"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+    st.plotly_chart(
+        make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ffcc00", "Tickets/day"),
+        use_container_width=True, config={"displayModeBar": False}
+    )
+
+# =============================================================================
+# TAB 8: MAKO VOLUME HEATMAP
+# =============================================================================
+with tabs[7]:
     st.title("🔥 Mako Reactor Traffic Flow")
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = st.session_state.master_data["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
     
-    # --- TRANSMUTED TRANSPARENT MAKO SURGE GRAPH ---
     st.subheader("📊 Mako core Traffic Surge graph")
     
-    # Process dictionary directly into a chronological layout
     df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
     
-    # Generate interactive area wave through Plotly Express engine
     fig = px.area(
         df_vol, 
         x="Time Slot", 
         y="Call Volume",
-        color_discrete_sequence=["rgba(0, 255, 204, 0.45)"] # Neon Mako Green filling
+        color_discrete_sequence=["rgba(0, 255, 204, 0.45)"]
     )
     
-    # Apply intense deep-space styling & full alpha transparency overlays
     fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",  # Purges canvas box background completely
-        plot_bgcolor="rgba(0,0,0,0)",   # Purges interior tracking graph fill
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=15, b=10),
         height=280,
         showlegend=False,
         xaxis=dict(
             showgrid=True,
-            gridcolor="rgba(0, 255, 204, 0.08)", # Faded cyber-grid markers
-            tickfont=dict(color="#00ffcc", family="Courier New"), # Flat configuration layout for Python 3.14 compatibility
+            gridcolor="rgba(0, 255, 204, 0.08)",
+            tickfont=dict(color="#00ffcc", family="Courier New"),
             title=None
         ),
         yaxis=dict(
             showgrid=True,
             gridcolor="rgba(0, 255, 204, 0.08)",
-            tickfont=dict(color="#00ffcc", family="Courier New"), # Flat configuration layout for Python 3.14 compatibility
+            tickfont=dict(color="#00ffcc", family="Courier New"),
             title=None
         )
     )
     
-    # Polish line aesthetic bounds
     fig.update_traces(
-        line=dict(color="rgba(0, 255, 204, 1)", width=3), # Striking solid neon perimeter
+        line=dict(color="rgba(0, 255, 204, 1)", width=3),
         hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>"
     )
     
-    # Commit chart safely back inside container constraints
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
     st.divider()
@@ -894,9 +970,9 @@ with tabs[6]:
     st.table(pd.DataFrame([o_stats], columns=OUTCOME_KEYS))
 
 # =============================================================================
-# TAB 8: WALL MARKET (SHOP)
+# TAB 9: WALL MARKET (SHOP)
 # =============================================================================
-with tabs[7]:
+with tabs[8]:
     st.title("💰 Wall Market Item Shop")
     shop_ui_col1, shop_ui_col2 = st.columns([1, 2])
     
@@ -912,7 +988,6 @@ with tabs[7]:
             if buyer_stats["GIL"] >= perk_price:
                 st.session_state.master_data[current_buyer]["spent"] += perk_price
                 now_str = datetime.now().strftime("%d/%m %H:%M")
-                # Structure purchase log metadata clearly
                 st.session_state.master_data[current_buyer]["history"].insert(0, f"{now_str}: Bought {perk_name} cost_{perk_price}")
                 st.success(f"Authorized! {perk_name} acquired.")
                 st.rerun()
@@ -929,9 +1004,9 @@ with tabs[7]:
         else: st.write("No items purchased yet.")
 
 # =============================================================================
-# TAB 9: ADMIN COMMAND CENTER
+# TAB 10: ADMIN COMMAND CENTER
 # =============================================================================
-with tabs[8]:
+with tabs[9]:
     st.header("🔐 Admin Command Center")
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
     vault_password = st.secrets.get("admin_password", "shinra2026")
@@ -1109,7 +1184,7 @@ with tabs[8]:
 
         st.divider()
 
-        # --- PANEL MODULE 4: LEDGER CORRECTIONS MODERATOR BLOCK ---
+        # --- PANEL MODULE 4: LEDGER CORRECTIONS ---
         st.subheader("🚨 Module 4: Shinra Financial Audit & Ledger Deletions Panel")
         aud_col1, aud_col2 = st.columns(2)
         
@@ -1138,7 +1213,6 @@ with tabs[8]:
             shop_del_user = st.selectbox("Select Shopper to Audit Invoices", STAFF_NAMES, key="shop_del_usr")
             user_history = st.session_state.master_data[shop_del_user].get("history", [])
             
-            # Filter history entries that explicitly contain cost flags
             purchase_entries = [item for item in user_history if " cost_" in item]
             
             if purchase_entries:
@@ -1153,14 +1227,9 @@ with tabs[8]:
                 raw_string_to_remove = purchase_entries[target_item_idx_in_filtered]
                 
                 if st.button("💸 Void Purchase & Refund GIL", type="primary"):
-                    # Find exact cost value match
                     extracted_cost = int(raw_string_to_remove.split(" cost_")[1])
-                    
-                    # Remove it directly from their primary list string log array
                     st.session_state.master_data[shop_del_user]["history"].remove(raw_string_to_remove)
-                    # Refund the ledger currency points wallet variables
                     st.session_state.master_data[shop_del_user]["spent"] -= extracted_cost
-                    
                     st.success(f"Order Voided! Refunded +💰 {extracted_cost} GIL back into {shop_del_user}'s wallet.")
                     st.rerun()
             else:
@@ -1168,7 +1237,7 @@ with tabs[8]:
 
         st.divider()
 
-        # --- EXPORT INTERFACE BLOCK MATRIX ---
+        # --- EXPORT INTERFACE ---
         st.subheader("Manual Data Save String")
         st.warning("Ensure this text block code snippet is extracted and pasted into your active Streamlit Cloud Vault configuration properties framework setup.")
         export_string = json.dumps(st.session_state.master_data)
