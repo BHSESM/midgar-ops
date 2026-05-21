@@ -122,7 +122,7 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
-    /* Flex Grid Container for Profile Badges (Keeps heights uniform) */
+    /* Flex Grid Container for Profile Badges */
     .profile-honors-flex-container {
         display: flex;
         flex-wrap: wrap;
@@ -147,7 +147,7 @@ st.markdown("""
         white-space: nowrap;
     }
     
-    /* Character Images (Default MTD Tab Views) */
+    /* Character Images */
     div[data-testid="stImage"] img {
         max-height: 135px !important;
         filter: drop-shadow(0px 0px 12px rgba(0, 255, 204, 0.5));
@@ -170,7 +170,7 @@ st.markdown("""
 
     [data-testid="stMetricValue"] { color: #00ffcc !important; font-family: 'Courier New', monospace; }
     
-    /* Collapsible Dropdown Accordion Panel Override Styling */
+    /* Expander */
     div[data-testid="stExpander"] {
         background-color: rgba(30, 30, 30, 0.5) !important;
         border: 1px solid rgba(0, 255, 204, 0.2) !important;
@@ -178,7 +178,7 @@ st.markdown("""
         margin-top: 15px !important;
     }
 
-    /* --- NEW BOSS BATTLE CSS STYLING OVERLAYS --- */
+    /* Boss Battle CSS */
     .battle-hud-box {
         background: linear-gradient(180deg, rgba(0,0,120,0.85) 0%, rgba(0,0,40,0.95) 100%) !important;
         border: 3px solid #ffffff !important;
@@ -208,6 +208,56 @@ st.markdown("""
         font-size: 1.0rem;
         text-align: right;
     }
+
+    /* Team Spirit Card */
+    .spirit-card {
+        background: rgba(0, 255, 204, 0.06);
+        border: 1px solid rgba(0, 255, 204, 0.35);
+        border-radius: 16px;
+        padding: 22px;
+        margin-bottom: 18px;
+        text-align: center;
+    }
+    .spirit-stat-big {
+        font-size: 2.4rem !important;
+        font-weight: bold !important;
+        color: #00ffcc !important;
+        font-family: 'Courier New', monospace;
+        display: block;
+        line-height: 1.1;
+    }
+    .spirit-stat-label {
+        font-size: 0.78rem !important;
+        color: #888 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 4px;
+        display: block;
+    }
+    .signal-card-ok {
+        background: rgba(0, 255, 204, 0.07);
+        border: 1px solid rgba(0, 255, 204, 0.4);
+        border-left: 4px solid #00ffcc;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+    }
+    .signal-card-warn {
+        background: rgba(255, 204, 0, 0.07);
+        border: 1px solid rgba(255, 204, 0, 0.4);
+        border-left: 4px solid #ffcc00;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+    }
+    .signal-card-crit {
+        background: rgba(255, 75, 75, 0.07);
+        border: 1px solid rgba(255, 75, 75, 0.4);
+        border-left: 4px solid #ff4b4b;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -227,6 +277,14 @@ TITLES = [
     "Rocket Town Specialist 🚀", "Nibelheim Technician 🔩", "SOLDIER Tech 3rd Class ⚔️", 
     "SOLDIER Tech 2nd Class ⚔️", "SOLDIER Tech 1st Class ⚔️", "Midgar Hero 🛡️", 
     "Planet's Defender 🌿", "Lifestream Sage 💫", "Ancient of the LAN ✨"
+]
+
+TEAM_TITLES = [
+    ("Sector 7 Survivors", "The party is just getting started. Keep pushing."),
+    ("Midgar Resistance", "The team is finding its rhythm. Avalanche assembles."),
+    ("Avalanche Operatives", "Solid output across the board. The Planet feels it."),
+    ("Elite Strike Force", "The team is firing on all cylinders. Shinra is rattled."),
+    ("Guardians of the Planet", "Legendary performance. The Lifestream flows strong. 🌿"),
 ]
 
 SHOP_ITEMS = {
@@ -328,18 +386,14 @@ def calculate_winners(metric, staff_list, high_is_best=True):
 def load_data():
     if "staff_json" in st.secrets:
         data = json.loads(st.secrets["staff_json"])
-        
         data.setdefault("team_stats", {
             "success_pct": 0.0, "sla_pct": 0.0,
             "longest_wait": "00:00:00", "avg_queue": "00:00:00"
         })
-        
         if "volume_stats" not in data:
             data["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
-            
         if "outcome_stats" not in data:
             data["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
-            
         return data
 
     base = {
@@ -401,11 +455,11 @@ for title, key, is_high in HONORS_MAP:
     for winner in winners:
         OPERATIVE_HONORS[winner].append(title)
 
-# --- TABS DESCRIPTOR HUD ---
+# --- TABS ---
 tabs = st.tabs([
     "⚔️ Active Party", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests", 
     "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts",
-    "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
+    "🌟 Party Spirit", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
 ])
 
 # =============================================================================
@@ -448,7 +502,6 @@ with tabs[0]:
                 
                 st.write(f"❤️ Vitality (HP): {res['HP_Display']}")
                 st.progress(res["HP_Pct"])
-                
                 st.write(f"💠 Next Level: {res['Next_XP']} EXP needed")
                 st.progress(res["EXP_Pct"])
                 
@@ -494,12 +547,10 @@ with tabs[1]:
             p_stats = st.session_state.master_data[name]
             p_res = get_stats(p_stats)
             avatar_link = AVATARS.get(name, "")
-            
             with p_sub_cols[idx % 3]:
                 if p_res["HP_Pct"] > 0.75: border_color = "#00ffcc"
                 elif p_res["HP_Pct"] > 0.35: border_color = "#ffcc00"
                 else: border_color = "#ff4b4b"
-                
                 st.markdown(f"""
                     <div style="background: rgba(15, 15, 15, 0.8); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
                         <img src="{avatar_link}" style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;">
@@ -538,13 +589,9 @@ with tabs[1]:
     for name in STAFF_NAMES:
         p_stats = st.session_state.master_data[name]
         p_res = get_stats(p_stats)
-        
-        if p_res["Current_HP_Raw"] == 0: 
-            hp_color_hex = "#ff4b4b"
-        elif p_res["HP_Pct"] > 0.35: 
-            hp_color_hex = "#00ffcc"
-        else:
-            hp_color_hex = "#ffcc00"
+        if p_res["Current_HP_Raw"] == 0: hp_color_hex = "#ff4b4b"
+        elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#00ffcc"
+        else: hp_color_hex = "#ffcc00"
         
         r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
         with r_c1:
@@ -680,7 +727,6 @@ with tabs[4]:
     for idx, name in enumerate(STAFF_NAMES):
         active_snap = st.session_state.daily_snapshot_data[name]
         avatar_url = AVATARS.get(name, "")
-        
         with stack_cols[idx % 2]:
             st.markdown(f"""
                 <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 230px;">
@@ -718,7 +764,6 @@ with tabs[4]:
     with st.expander("🛠️ Open Operational Data Entry Terminal", expanded=False):
         st.write("Mass multi-row entry console system.")
         new_answered, new_pct, new_outbound, new_open, new_close = {}, {}, {}, {}, {}
-        
         for name in STAFF_NAMES:
             current_vals = st.session_state.daily_snapshot_data[name]
             r_col0, r_col1, r_col2, r_col3, r_col4, r_col5 = st.columns([1.5, 1, 1, 1, 1, 1])
@@ -746,7 +791,6 @@ with tabs[4]:
         daily_exp = snap_item["answered"] + snap_item["outbound"] + snap_item["open"] + snap_item["close"]
         weight = SHIFT_WEIGHTS.get(name, 1.0)
         projected_gil = round((daily_exp / weight) ** 0.9) if daily_exp > 0 else 0
-        
         daily_rows_matrix.append({
             "Operative": name, "Calls Answered": snap_item["answered"], "Answer Rate": snap_item["pct"],
             "Outbound Calls": snap_item["outbound"], "SD Opened": snap_item["open"], "SD Closed": snap_item["close"],
@@ -820,7 +864,7 @@ with tabs[5]:
             st.markdown(f'<div class="award-card"><div style="color:#00ffcc; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div><div>{winners_str}</div></div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 7: PERFORMANCE CHARTS (NEW)
+# TAB 7: PERFORMANCE CHARTS
 # =============================================================================
 with tabs[6]:
     st.title("📈 Operative Performance Charts")
@@ -838,11 +882,7 @@ with tabs[6]:
             textfont=dict(color="#f0f0f0", family="Courier New", size=13)
         ))
         fig.update_layout(
-            title=dict(
-                text=title,
-                font=dict(color="#00ffcc", size=16, family="Courier New"),
-                x=0
-            ),
+            title=dict(text=title, font=dict(color="#00ffcc", size=16, family="Courier New"), x=0),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(l=10, r=10, t=50, b=10),
@@ -862,34 +902,18 @@ with tabs[6]:
         )
         return fig
 
-    # --- MTD TOTALS ---
     st.subheader("📊 Month-To-Date Totals")
-
     mtd_in    = [st.session_state.master_data[n]["in"]    for n in STAFF_NAMES]
     mtd_out   = [st.session_state.master_data[n]["out"]   for n in STAFF_NAMES]
     mtd_open  = [st.session_state.master_data[n]["open"]  for n in STAFF_NAMES]
     mtd_close = [st.session_state.master_data[n]["close"] for n in STAFF_NAMES]
 
-    st.plotly_chart(
-        make_bar("Inbound Calls — MTD", mtd_in, "#00ffcc", "Calls"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
-    st.plotly_chart(
-        make_bar("Outbound Calls — MTD", mtd_out, "#0099ff", "Calls"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
-    st.plotly_chart(
-        make_bar("Tickets Opened — MTD", mtd_open, "#ff4b4b", "Tickets"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
-    st.plotly_chart(
-        make_bar("Tickets Closed — MTD", mtd_close, "#ffcc00", "Tickets"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
+    st.plotly_chart(make_bar("Inbound Calls — MTD", mtd_in, "#00ffcc", "Calls"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Outbound Calls — MTD", mtd_out, "#0099ff", "Calls"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Tickets Opened — MTD", mtd_open, "#ff4b4b", "Tickets"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Tickets Closed — MTD", mtd_close, "#ffcc00", "Tickets"), use_container_width=True, config={"displayModeBar": False})
 
     st.divider()
-
-    # --- WEIGHTED DAILY AVERAGES ---
     st.subheader("📅 Weighted Daily Averages")
 
     avg_in_vals, avg_out_vals, avg_open_vals, avg_close_vals = [], [], [], []
@@ -900,68 +924,319 @@ with tabs[6]:
         avg_open_vals.append(avgs["avg_open"]  if avgs["avg_open"]  is not None else 0)
         avg_close_vals.append(avgs["avg_close"] if avgs["avg_close"] is not None else 0)
 
-    st.plotly_chart(
-        make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#00ffcc", "Calls/day"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
-    st.plotly_chart(
-        make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#0099ff", "Calls/day"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
-    st.plotly_chart(
-        make_bar("Avg Tickets Opened — Daily (Weighted)", avg_open_vals, "#ff4b4b", "Tickets/day"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
-    st.plotly_chart(
-        make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ffcc00", "Tickets/day"),
-        use_container_width=True, config={"displayModeBar": False}
-    )
+    st.plotly_chart(make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#00ffcc", "Calls/day"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#0099ff", "Calls/day"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Tickets Opened — Daily (Weighted)", avg_open_vals, "#ff4b4b", "Tickets/day"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ffcc00", "Tickets/day"), use_container_width=True, config={"displayModeBar": False})
+
 
 # =============================================================================
-# TAB 8: MAKO VOLUME HEATMAP
+# TAB 8: PARTY SPIRIT — COLLECTIVE TEAM VIEW (NEW)
 # =============================================================================
 with tabs[7]:
+    st.title("🌟 Party Spirit — Avalanche Collective Status")
+    st.write("One view. One team. How are we doing together this month?")
+
+    # ── Shared calculations ───────────────────────────────────────────────────
+    all_res = {n: get_stats(st.session_state.master_data[n]) for n in STAFF_NAMES}
+
+    total_team_exp   = sum(r["Raw_EXP"] for r in all_res.values())
+    total_team_gil   = sum(r["GIL"] for r in all_res.values())
+    total_team_lvls  = sum(r["Level"] for r in all_res.values())
+    avg_team_lvl     = round(total_team_lvls / len(STAFF_NAMES), 1) if STAFF_NAMES else 0
+
+    total_in    = sum(st.session_state.master_data[n]["in"]    for n in STAFF_NAMES)
+    total_out   = sum(st.session_state.master_data[n]["out"]   for n in STAFF_NAMES)
+    total_open  = sum(st.session_state.master_data[n]["open"]  for n in STAFF_NAMES)
+    total_close = sum(st.session_state.master_data[n]["close"] for n in STAFF_NAMES)
+    total_awol  = sum(st.session_state.master_data[n]["awol"]  for n in STAFF_NAMES)
+    avg_ans     = sum(st.session_state.master_data[n]["ans"]   for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
+    sla_val     = float(st.session_state.master_data["team_stats"]["sla_pct"])
+
+    # Team score: missions hit out of 4
+    missions_hit = 0
+    if total_out   >= 500:   missions_hit += 1
+    if avg_ans     >= 98.0:  missions_hit += 1
+    if total_awol  <= 5.0:   missions_hit += 1
+    if sla_val     >= 92.5:  missions_hit += 1
+
+    # Team title based on missions hit + avg level
+    combined_score = missions_hit + int(avg_team_lvl / 3)
+    team_title_idx = min(combined_score, len(TEAM_TITLES) - 1)
+    team_title, team_flavour = TEAM_TITLES[team_title_idx]
+
+    # Party HP — average of individual HP percentages
+    avg_hp_pct = sum(r["HP_Pct"] for r in all_res.values()) / len(all_res) if all_res else 0
+    if avg_hp_pct > 0.75:   party_hp_color = "#00ffcc"
+    elif avg_hp_pct > 0.40: party_hp_color = "#ffcc00"
+    else:                    party_hp_color = "#ff4b4b"
+
+    # Mako Level — shared EXP pool scaled to a 0-100 gauge
+    mako_level = min(100, round((total_team_exp / 3000) * 100))
+
+    # ── SECTION 1: Team identity banner ──────────────────────────────────────
+    st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(0,255,204,0.08) 0%, rgba(0,100,80,0.15) 100%);
+                    border: 1px solid rgba(0,255,204,0.45); border-radius: 18px;
+                    padding: 28px 32px; text-align: center; margin-bottom: 28px;">
+            <div style="font-size: 0.8rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 6px;">Current Party Designation</div>
+            <div style="font-size: 2rem; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; text-shadow: 0 0 18px rgba(0,255,204,0.4);">
+                {team_title}
+            </div>
+            <div style="font-size: 0.9rem; color: #bbb; margin-top: 10px; font-style: italic;">{team_flavour}</div>
+            <div style="margin-top: 18px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                {"".join([f'<span style="background:rgba(0,255,204,0.15);border:1px solid rgba(0,255,204,0.5);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#00ffcc;">✅ Mission {i+1}</span>' if i < missions_hit else f'<span style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#555;">⬜ Mission {i+1}</span>' for i in range(4)])}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # ── SECTION 2: Big stat row ───────────────────────────────────────────────
+    s1, s2, s3, s4 = st.columns(4)
+    with s1:
+        st.markdown(f"""
+            <div class="spirit-card">
+                <span class="spirit-stat-big">{total_team_exp:,}</span>
+                <span class="spirit-stat-label">💠 Total Party EXP</span>
+            </div>
+        """, unsafe_allow_html=True)
+    with s2:
+        st.markdown(f"""
+            <div class="spirit-card">
+                <span class="spirit-stat-big">{total_team_gil:,}</span>
+                <span class="spirit-stat-label">💰 Total Party GIL</span>
+            </div>
+        """, unsafe_allow_html=True)
+    with s3:
+        st.markdown(f"""
+            <div class="spirit-card">
+                <span class="spirit-stat-big">{avg_team_lvl}</span>
+                <span class="spirit-stat-label">⚔️ Avg Operative Level</span>
+            </div>
+        """, unsafe_allow_html=True)
+    with s4:
+        st.markdown(f"""
+            <div class="spirit-card">
+                <span class="spirit-stat-big">{missions_hit}/4</span>
+                <span class="spirit-stat-label">🎯 Missions Achieved</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── SECTION 3: Mako Level gauge + Party HP side by side ──────────────────
+    g1, g2 = st.columns(2)
+
+    with g1:
+        st.markdown("#### ⚡ Collective Mako Level")
+        st.markdown(f"""
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,204,0.25);
+                        border-radius: 12px; padding: 20px; margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color:#aaa; font-size:0.85rem;">Combined team output fuelling the reactor</span>
+                    <span style="color:#00ffcc; font-family:'Courier New'; font-weight:bold; font-size:1.1rem;">{mako_level}%</span>
+                </div>
+                <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(0,255,204,0.2);">
+                    <div style="background: linear-gradient(90deg, #005544, #00ffcc); width: {mako_level}%; height: 100%; transition: width 0.4s ease;"></div>
+                </div>
+                <div style="margin-top: 12px; font-size: 0.8rem; color: #666;">
+                    Total Calls: {total_in + total_out:,} &nbsp;|&nbsp; Total Tickets: {total_open + total_close:,} &nbsp;|&nbsp; Total EXP: {total_team_exp:,}
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with g2:
+        st.markdown("#### ❤️ Party Vitality Reading")
+        st.markdown(f"""
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,204,0.25);
+                        border-radius: 12px; padding: 20px; margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color:#aaa; font-size:0.85rem;">Average HP across all operatives</span>
+                    <span style="color:{party_hp_color}; font-family:'Courier New'; font-weight:bold; font-size:1.1rem;">{round(avg_hp_pct*100)}%</span>
+                </div>
+                <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(0,255,204,0.2);">
+                    <div style="background-color: {party_hp_color}; width: {round(avg_hp_pct*100)}%; height: 100%;"></div>
+                </div>
+                <div style="margin-top: 12px;">
+        """, unsafe_allow_html=True)
+        # Individual HP mini pills
+        pill_html = ""
+        for name in STAFF_NAMES:
+            r = all_res[name]
+            if r["HP_Pct"] > 0.75: pc = "#00ffcc"
+            elif r["HP_Pct"] > 0.40: pc = "#ffcc00"
+            else: pc = "#ff4b4b"
+            short = name.split(" ")[0]
+            pill_html += f'<span style="background:rgba(0,0,0,0.5);border:1px solid {pc};border-radius:20px;padding:3px 10px;font-size:0.72rem;color:{pc};margin:2px;display:inline-block;">{short} {round(r["HP_Pct"]*100)}%</span>'
+        st.markdown(f"{pill_html}</div></div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── SECTION 4: Collective volume chart (stacked bar per person) ───────────
+    st.subheader("📊 Party Contribution Breakdown")
+    st.write("How each operative is contributing to the team's total output this month.")
+
+    categories = ["Inbound", "Outbound", "Opened", "Closed"]
+    chart_colors = ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00"]
+    keys = ["in", "out", "open", "close"]
+
+    fig_stack = go.Figure()
+    for ki, (cat, col) in enumerate(zip(categories, chart_colors)):
+        fig_stack.add_trace(go.Bar(
+            name=cat,
+            x=[n.split(" ")[0] for n in STAFF_NAMES],
+            y=[st.session_state.master_data[n][keys[ki]] for n in STAFF_NAMES],
+            marker_color=col,
+            opacity=0.88
+        ))
+
+    fig_stack.update_layout(
+        barmode="stack",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=10, t=20, b=10),
+        height=320,
+        legend=dict(font=dict(color="#aaa", family="Courier New"), bgcolor="rgba(0,0,0,0)"),
+        xaxis=dict(tickfont=dict(color="#00ffcc", family="Courier New"), gridcolor="rgba(0,255,204,0.06)", title=None),
+        yaxis=dict(tickfont=dict(color="#aaa", family="Courier New"), gridcolor="rgba(0,255,204,0.08)", title=None)
+    )
+    st.plotly_chart(fig_stack, use_container_width=True, config={"displayModeBar": False})
+
+    st.divider()
+
+    # ── SECTION 5: Support signals ────────────────────────────────────────────
+    st.subheader("🔍 Party Support Signals")
+    st.write("Areas where the team might need a helping hand — framed for the group, not the individual.")
+
+    signals_found = False
+
+    # Check answer rate
+    for name in STAFF_NAMES:
+        ans = st.session_state.master_data[name]["ans"]
+        short = name.split(" ")[0]
+        if ans < 95:
+            signals_found = True
+            st.markdown(f"""
+                <div class="signal-card-crit">
+                    <strong style="color:#ff4b4b;">📞 Comms Under Pressure</strong>
+                    <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                        {short}'s answer rate has dipped to <strong style="color:#ff4b4b;">{ans}%</strong>. 
+                        The team may be able to help cover volume or check in.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+        elif ans < 98:
+            signals_found = True
+            st.markdown(f"""
+                <div class="signal-card-warn">
+                    <strong style="color:#ffcc00;">📞 Comms Slightly Stretched</strong>
+                    <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                        {short}'s answer rate is at <strong style="color:#ffcc00;">{ans}%</strong>. 
+                        Worth keeping an eye on as the month progresses.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # Check HP
+    for name in STAFF_NAMES:
+        r = all_res[name]
+        short = name.split(" ")[0]
+        if r["HP_Pct"] < 0.35 and r["Max_HP_Raw"] > 0:
+            signals_found = True
+            st.markdown(f"""
+                <div class="signal-card-crit">
+                    <strong style="color:#ff4b4b;">❤️ Vitality Critical</strong>
+                    <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                        {short} is running low on HP ({r['HP_Display']}). AWOL time or answer rate may need attention — the party can rally around this.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+        elif r["HP_Pct"] < 0.60 and r["Max_HP_Raw"] > 0:
+            signals_found = True
+            st.markdown(f"""
+                <div class="signal-card-warn">
+                    <strong style="color:#ffcc00;">❤️ Vitality Moderate</strong>
+                    <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                        {short} is at {round(r['HP_Pct']*100)}% HP. Not critical yet, but worth a check-in.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # AWOL pool
+    if total_awol > 5:
+        signals_found = True
+        st.markdown(f"""
+            <div class="signal-card-crit">
+                <strong style="color:#ff4b4b;">⏱️ AWOL Pool Exceeded</strong>
+                <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                    The team has used <strong style="color:#ff4b4b;">{total_awol} minutes</strong> of AWOL time against a 5-minute pool. 
+                    Collective focus will help bring this back on track.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    elif total_awol > 3:
+        signals_found = True
+        st.markdown(f"""
+            <div class="signal-card-warn">
+                <strong style="color:#ffcc00;">⏱️ AWOL Pool Thinning</strong>
+                <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                    {total_awol} of 5 AWOL minutes used. Only {5 - total_awol:.1f} minutes remaining in the shared pool.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # SLA
+    if sla_val > 0 and sla_val < 88:
+        signals_found = True
+        st.markdown(f"""
+            <div class="signal-card-crit">
+                <strong style="color:#ff4b4b;">📋 SLA Needs Urgent Attention</strong>
+                <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                    SLA is currently at <strong style="color:#ff4b4b;">{sla_val:.1f}%</strong> against a 92.5% target. 
+                    Ticket prioritisation across the team will make the biggest difference.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    elif sla_val > 0 and sla_val < 92.5:
+        signals_found = True
+        st.markdown(f"""
+            <div class="signal-card-warn">
+                <strong style="color:#ffcc00;">📋 SLA Approaching Threshold</strong>
+                <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                    SLA is at <strong style="color:#ffcc00;">{sla_val:.1f}%</strong>. The team is close — a coordinated push on tickets will secure the mission.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    if not signals_found:
+        st.markdown("""
+            <div class="signal-card-ok">
+                <strong style="color:#00ffcc;">✅ All Systems Green</strong>
+                <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
+                    No support signals detected. The party is healthy, the Mako flows strong, and the Planet is breathing easy. Keep it up, Avalanche.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+
+# =============================================================================
+# TAB 9: MAKO VOLUME HEATMAP
+# =============================================================================
+with tabs[8]:
     st.title("🔥 Mako Reactor Traffic Flow")
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = st.session_state.master_data["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
     
     st.subheader("📊 Mako core Traffic Surge graph")
-    
     df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
-    
-    fig = px.area(
-        df_vol, 
-        x="Time Slot", 
-        y="Call Volume",
-        color_discrete_sequence=["rgba(0, 255, 204, 0.45)"]
-    )
-    
+    fig = px.area(df_vol, x="Time Slot", y="Call Volume", color_discrete_sequence=["rgba(0, 255, 204, 0.45)"])
     fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=15, b=10),
-        height=280,
-        showlegend=False,
-        xaxis=dict(
-            showgrid=True,
-            gridcolor="rgba(0, 255, 204, 0.08)",
-            tickfont=dict(color="#00ffcc", family="Courier New"),
-            title=None
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor="rgba(0, 255, 204, 0.08)",
-            tickfont=dict(color="#00ffcc", family="Courier New"),
-            title=None
-        )
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=10, t=15, b=10), height=280, showlegend=False,
+        xaxis=dict(showgrid=True, gridcolor="rgba(0, 255, 204, 0.08)", tickfont=dict(color="#00ffcc", family="Courier New"), title=None),
+        yaxis=dict(showgrid=True, gridcolor="rgba(0, 255, 204, 0.08)", tickfont=dict(color="#00ffcc", family="Courier New"), title=None)
     )
-    
-    fig.update_traces(
-        line=dict(color="rgba(0, 255, 204, 1)", width=3),
-        hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>"
-    )
-    
+    fig.update_traces(line=dict(color="rgba(0, 255, 204, 1)", width=3), hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>")
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
     st.divider()
@@ -970,9 +1245,9 @@ with tabs[7]:
     st.table(pd.DataFrame([o_stats], columns=OUTCOME_KEYS))
 
 # =============================================================================
-# TAB 9: WALL MARKET (SHOP)
+# TAB 10: WALL MARKET (SHOP)
 # =============================================================================
-with tabs[8]:
+with tabs[9]:
     st.title("💰 Wall Market Item Shop")
     shop_ui_col1, shop_ui_col2 = st.columns([1, 2])
     
@@ -1004,9 +1279,9 @@ with tabs[8]:
         else: st.write("No items purchased yet.")
 
 # =============================================================================
-# TAB 10: ADMIN COMMAND CENTER
+# TAB 11: ADMIN COMMAND CENTER
 # =============================================================================
-with tabs[9]:
+with tabs[10]:
     st.header("🔐 Admin Command Center")
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
     vault_password = st.secrets.get("admin_password", "shinra2026")
@@ -1014,9 +1289,8 @@ with tabs[9]:
     if admin_access == vault_password:
         st.success("Access Granted. Systems online.")
 
-        # --- PANEL MODULE 0: SIDE QUEST CONSOLE ---
+        # --- MODULE 0: SIDE QUEST CONSOLE ---
         st.subheader("🐉 Module 0: Tavern Dispatch Side Quest Control Board")
-        
         sq_adm_col1, sq_adm_col2 = st.columns(2)
         
         with sq_adm_col1:
@@ -1024,15 +1298,12 @@ with tabs[9]:
             q_target = st.selectbox("Target Operative", STAFF_NAMES, key="q_tgt")
             q_title = st.text_input("Quest Objective Title (Free Text)", placeholder="e.g., Auditing Archive Logs / Writing SOP Guide")
             q_mins = st.number_input("Quest Duration (Minutes spent off-line)", min_value=1, value=60, step=1)
-            
             tgt_stats = st.session_state.master_data[q_target]
             tgt_avgs = get_daily_averages(q_target, tgt_stats)
-            
             if tgt_avgs["avg_in"] is not None:
                 st.caption(f"ℹ️ Run Rate Preview for {q_target}: Extrapolating from calculated baseline metrics...")
             else:
                 st.caption("⚠️ Note: Operative has 0 days logged. Payouts fallback to safety baselines.")
-                
             adm_btn_c1, adm_btn_c2 = st.columns(2)
             with adm_btn_c1:
                 if st.button("🚀 Deploy to Active Quest Board"):
@@ -1044,7 +1315,6 @@ with tabs[9]:
                         st.success(f"{q_target} dispatched out to: '{q_title}'")
                         st.rerun()
                     else: st.error("Please provide a quest title description.")
-                    
             with adm_btn_c2:
                 if st.button("❌ Terminate Active Quest"):
                     st.session_state.master_data[q_target]["active_quest"] = {}
@@ -1055,45 +1325,32 @@ with tabs[9]:
             st.markdown("##### **Complete and Pay Out Quest**")
             q_complete_target = st.selectbox("Select Operative to Complete Active Quest For", STAFF_NAMES, key="q_comp_tgt")
             active_q_obj = st.session_state.master_data[q_complete_target].get("active_quest", {})
-            
             if active_q_obj and active_q_obj.get("title"):
                 st.info(f"**Quest:** {active_q_obj['title']}\n\n**Logged:** {active_q_obj['minutes']} mins (1:1 Frontline Match)")
-                
                 if st.button("🏆 Mark Completed & Inject Rewards"):
                     m_stats = st.session_state.master_data[q_complete_target]
                     avgs = get_daily_averages(q_complete_target, m_stats)
-                    
                     base_in = avgs["avg_in"] if avgs["avg_in"] is not None else 15
                     base_out = avgs["avg_out"] if avgs["avg_out"] is not None else 10
                     base_open = avgs["avg_open"] if avgs["avg_open"] is not None else 5
                     base_close = avgs["avg_close"] if avgs["avg_close"] is not None else 5
-                    
                     m_duration = active_q_obj["minutes"]
                     boost = 1.0
-                    
-                    sim_in = (base_in / 480.0) * m_duration * boost
-                    sim_out = (base_out / 480.0) * m_duration * boost
-                    sim_open = (base_open / 480.0) * m_duration * boost
+                    sim_in    = (base_in    / 480.0) * m_duration * boost
+                    sim_out   = (base_out   / 480.0) * m_duration * boost
+                    sim_open  = (base_open  / 480.0) * m_duration * boost
                     sim_close = (base_close / 480.0) * m_duration * boost
-                    
                     simulated_exp_sum = round(sim_in + sim_out + sim_open + sim_close)
                     if simulated_exp_sum < 1: simulated_exp_sum = max(1, round(m_duration * 0.4 * boost))
-                    
                     calculated_gil_bonus = round((simulated_exp_sum) ** 0.9)
                     if calculated_gil_bonus < 1: calculated_gil_bonus = max(1, round(simulated_exp_sum * 0.8))
-                    
                     completed_quest_payload = {
-                        "title": active_q_obj["title"],
-                        "minutes": m_duration,
-                        "inflation": boost,
-                        "simulated_exp": int(simulated_exp_sum),
-                        "gil_reward": int(calculated_gil_bonus),
+                        "title": active_q_obj["title"], "minutes": m_duration, "inflation": boost,
+                        "simulated_exp": int(simulated_exp_sum), "gil_reward": int(calculated_gil_bonus),
                         "timestamp": datetime.now().strftime("%d/%m %H:%M")
                     }
-                    
                     st.session_state.master_data[q_complete_target]["side_quests"].append(completed_quest_payload)
                     st.session_state.master_data[q_complete_target]["active_quest"] = {}
-                    
                     st.success(f"Quest Complete! Paid out +{simulated_exp_sum} EXP and +💰 {calculated_gil_bonus} GIL to {q_complete_target}.")
                     st.rerun()
             else:
@@ -1101,26 +1358,23 @@ with tabs[9]:
                 
         st.divider()
 
-        # --- PANEL MODULE 1: INDIVIDUAL OPERATIVES ---
+        # --- MODULE 1: INDIVIDUAL OPERATIVES ---
         st.subheader("👤 Module 1: Update Individual Operative Metrics")
         target_name = st.selectbox("Select Operative to Update", STAFF_NAMES)
         operative_vals = st.session_state.master_data[target_name]
-
         form_col1, form_col2 = st.columns(2)
         with form_col1:
-            val_in = st.number_input("Inbound Calls", value=operative_vals["in"])
-            val_out = st.number_input("Outbound Calls", value=operative_vals["out"])
-            val_ans = st.slider("Answer Rate %", 0, 100, int(operative_vals["ans"]))
+            val_in   = st.number_input("Inbound Calls", value=operative_vals["in"])
+            val_out  = st.number_input("Outbound Calls", value=operative_vals["out"])
+            val_ans  = st.slider("Answer Rate %", 0, 100, int(operative_vals["ans"]))
             val_days = st.number_input("Days Worked (MTD)", value=operative_vals.get("days_worked", 0), min_value=0, step=1)
         with form_col2:
-            val_open = st.number_input("SD Tickets Opened", value=operative_vals["open"])
+            val_open  = st.number_input("SD Tickets Opened", value=operative_vals["open"])
             val_close = st.number_input("SD Tickets Closed", value=operative_vals["close"])
-            val_awol = st.number_input("AWOL Minutes", value=operative_vals["awol"])
-
+            val_awol  = st.number_input("AWOL Minutes", value=operative_vals["awol"])
         shift_weight = SHIFT_WEIGHTS.get(target_name, 1.0)
         if shift_weight < 1.0:
             st.info(f"Shift weight for **{target_name}** is x{shift_weight}. {int(val_days)} days worked -> **{round(val_days * shift_weight, 2)} weighted days**.")
-
         if st.button("Commit Operative Stats to Lifestream"):
             st.session_state.master_data[target_name].update({
                 "in": val_in, "out": val_out, "ans": val_ans,
@@ -1131,23 +1385,21 @@ with tabs[9]:
 
         st.divider()
 
-        # --- PANEL MODULE 2: GLOBALS & TEAM METRICS ---
+        # --- MODULE 2: GLOBALS & TEAM METRICS ---
         st.subheader("🌐 Module 2: Update Team Global Metrics")
         ts = st.session_state.master_data["team_stats"]
         tm_col1, tm_col2 = st.columns(2)
         with tm_col1:
             val_success = st.number_input("Overall Success %", value=float(ts["success_pct"]), min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-            val_sla = st.number_input("SD Tickets Within SLA %", value=float(ts["sla_pct"]), min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
+            val_sla     = st.number_input("SD Tickets Within SLA %", value=float(ts["sla_pct"]), min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
         with tm_col2:
             val_longest_wait = st.text_input("Longest Wait Time Average (HH:MM:SS)", value=ts.get("longest_wait", "00:00:00"))
-            val_avg_queue = st.text_input("Average Queue Time (HH:MM:SS)", value=ts.get("avg_queue", "00:00:00"))
-
+            val_avg_queue    = st.text_input("Average Queue Time (HH:MM:SS)", value=ts.get("avg_queue", "00:00:00"))
             time_pattern = re.compile(r"^\d{2}:\d{2}:\d{2}$")
             lw_valid = bool(time_pattern.match(val_longest_wait))
             aq_valid = bool(time_pattern.match(val_avg_queue))
             if not lw_valid: st.error("Longest Wait format error. Use HH:MM:SS format.")
             if not aq_valid: st.error("Avg Queue Time format error. Use HH:MM:SS format.")
-
         if st.button("Commit Team Metrics to Lifestream"):
             if lw_valid and aq_valid:
                 st.session_state.master_data["team_stats"].update({
@@ -1159,23 +1411,20 @@ with tabs[9]:
 
         st.divider()
 
-        # --- PANEL MODULE 3: HEATMAP DATA ENTRIES ---
+        # --- MODULE 3: HEATMAP DATA ---
         st.subheader("🔥 Module 3: Update Mako Traffic Flows & Global Outcomes")
-        
         st.markdown("##### **Part A: Half-Hour Volume Parameters Input Grid**")
         v_inputs = {}
         v_cols = st.columns(4)
         for idx, slot in enumerate(TIME_SLOTS):
-            col_target = v_cols[idx % 4]
-            with col_target: v_inputs[slot] = st.number_input(f"Vol: {slot}", value=int(st.session_state.master_data["volume_stats"].get(slot, 0)), min_value=0, step=1)
-                
+            with v_cols[idx % 4]:
+                v_inputs[slot] = st.number_input(f"Vol: {slot}", value=int(st.session_state.master_data["volume_stats"].get(slot, 0)), min_value=0, step=1)
         st.markdown("##### **Part B: Standalone Percentage Metrics Input Grid**")
         o_inputs = {}
         o_cols = st.columns(4)
         for idx, key in enumerate(OUTCOME_KEYS):
-            col_target = o_cols[idx % 4]
-            with col_target: o_inputs[key] = st.text_input(f"{key}", value=str(st.session_state.master_data["outcome_stats"].get(key, "0.0%")))
-                
+            with o_cols[idx % 4]:
+                o_inputs[key] = st.text_input(f"{key}", value=str(st.session_state.master_data["outcome_stats"].get(key, "0.0%")))
         if st.button("🚀 Mass-Commit Heatmap Metrics to Lifestream"):
             for slot in TIME_SLOTS: st.session_state.master_data["volume_stats"][slot] = v_inputs[slot]
             for key in OUTCOME_KEYS: st.session_state.master_data["outcome_stats"][key] = o_inputs[key]
@@ -1184,23 +1433,18 @@ with tabs[9]:
 
         st.divider()
 
-        # --- PANEL MODULE 4: LEDGER CORRECTIONS ---
+        # --- MODULE 4: LEDGER CORRECTIONS ---
         st.subheader("🚨 Module 4: Shinra Financial Audit & Ledger Deletions Panel")
         aud_col1, aud_col2 = st.columns(2)
         
         with aud_col1:
             st.markdown("##### **🐉 Roll Back Completed Side Quests**")
-            sq_del_user = st.selectbox("Select Operative to Audit Quests", STAFF_NAMES, key="sq_del_usr")
-            user_quests = st.session_state.master_data[sq_del_user].get("side_quests", [])
-            
+            sq_del_user  = st.selectbox("Select Operative to Audit Quests", STAFF_NAMES, key="sq_del_usr")
+            user_quests  = st.session_state.master_data[sq_del_user].get("side_quests", [])
             if user_quests:
-                quest_options = []
-                for idx, q_obj in enumerate(user_quests):
-                    quest_options.append(f"{idx} | {q_obj['title']} (+{q_obj['simulated_exp']} XP, +{q_obj['gil_reward']} GIL)")
-                
+                quest_options = [f"{idx} | {q['title']} (+{q['simulated_exp']} XP, +{q['gil_reward']} GIL)" for idx, q in enumerate(user_quests)]
                 selected_quest_str = st.selectbox("Select Target Quest to Erase", quest_options)
-                target_quest_idx = int(selected_quest_str.split(" | ")[0])
-                
+                target_quest_idx   = int(selected_quest_str.split(" | ")[0])
                 if st.button("💥 Purge Quest & Deduct Rewards", type="primary"):
                     removed_quest = st.session_state.master_data[sq_del_user]["side_quests"].pop(target_quest_idx)
                     st.success(f"Successfully voided '{removed_quest['title']}'! Deducted {removed_quest['simulated_exp']} EXP and {removed_quest['gil_reward']} GIL from {sq_del_user}.")
@@ -1210,22 +1454,14 @@ with tabs[9]:
                 
         with aud_col2:
             st.markdown("##### **💰 Void Wall Market Purchases & Issue Refunds**")
-            shop_del_user = st.selectbox("Select Shopper to Audit Invoices", STAFF_NAMES, key="shop_del_usr")
-            user_history = st.session_state.master_data[shop_del_user].get("history", [])
-            
+            shop_del_user  = st.selectbox("Select Shopper to Audit Invoices", STAFF_NAMES, key="shop_del_usr")
+            user_history   = st.session_state.master_data[shop_del_user].get("history", [])
             purchase_entries = [item for item in user_history if " cost_" in item]
-            
             if purchase_entries:
-                purchase_options = []
-                for idx, item in enumerate(purchase_entries):
-                    clean_title = item.split(" cost_")[0]
-                    cost_val = item.split(" cost_")[1]
-                    purchase_options.append(f"{idx} | {clean_title} (Refund Value: {cost_val} GIL)")
-                
+                purchase_options = [f"{idx} | {item.split(' cost_')[0]} (Refund Value: {item.split(' cost_')[1]} GIL)" for idx, item in enumerate(purchase_entries)]
                 selected_item_str = st.selectbox("Select Target Order to Void", purchase_options)
                 target_item_idx_in_filtered = int(selected_item_str.split(" | ")[0])
                 raw_string_to_remove = purchase_entries[target_item_idx_in_filtered]
-                
                 if st.button("💸 Void Purchase & Refund GIL", type="primary"):
                     extracted_cost = int(raw_string_to_remove.split(" cost_")[1])
                     st.session_state.master_data[shop_del_user]["history"].remove(raw_string_to_remove)
@@ -1237,7 +1473,7 @@ with tabs[9]:
 
         st.divider()
 
-        # --- EXPORT INTERFACE ---
+        # --- EXPORT ---
         st.subheader("Manual Data Save String")
         st.warning("Ensure this text block code snippet is extracted and pasted into your active Streamlit Cloud Vault configuration properties framework setup.")
         export_string = json.dumps(st.session_state.master_data)
