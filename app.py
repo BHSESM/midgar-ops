@@ -209,6 +209,24 @@ st.markdown("""
         text-align: right;
     }
 
+    /* Combat Log Feed Cards */
+    .turn-spotlight-card {
+        background: rgba(0, 255, 204, 0.08);
+        border: 2px solid #00ffcc;
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.25);
+    }
+    .turn-history-entry {
+        background: rgba(10, 10, 25, 0.7);
+        border-left: 4px solid #0099ff;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
+        font-family: 'Courier New', monospace;
+    }
+
     /* Team Spirit Card */
     .spirit-card {
         background: rgba(0, 255, 204, 0.06);
@@ -359,7 +377,8 @@ def get_stats(stats):
         "HP_Display": f"{current_hp}/{max_hp}",
         "Raw_EXP": exp,
         "Current_HP_Raw": current_hp,
-        "Max_HP_Raw": max_hp
+        "Max_HP_Raw": max_hp,
+        "Damage_Sustained": damage
     }
 
 def get_daily_averages(name, stats):
@@ -411,6 +430,52 @@ def load_data():
     base["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
     base["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
     return base
+
+# --- CLASSIC FFVII COMBAT SPELL & LIMIT BREAK ENGINE ---
+def get_character_combat_action(name, level, raw_exp, stats):
+    """Generates classic PS1 FF7 moves based on level and character identity."""
+    sname = name.split(" ")[0]
+    
+    # Classic FFVII Limit Breaks & Materia Moves per character
+    if "Cloud" in name:
+        if level >= 10: move, mtype = "LIMIT BREAK: Omnislash", "LIMIT"
+        elif level >= 7: move, mtype = "LIMIT BREAK: Climhazzard", "LIMIT"
+        elif level >= 4: move, mtype = "LIMIT BREAK: Cross-Slash", "LIMIT"
+        elif level >= 2: move, mtype = "LIMIT BREAK: Braver", "LIMIT"
+        else: move, mtype = "Materia: Bolt2", "MAGIC"
+    elif "Aerith" in name:
+        if level >= 10: move, mtype = "LIMIT BREAK: Great Gospel", "LIMIT"
+        elif level >= 7: move, mtype = "LIMIT BREAK: Planet's Protection", "LIMIT"
+        elif level >= 4: move, mtype = "LIMIT BREAK: Breath of the Earth", "LIMIT"
+        elif level >= 2: move, mtype = "LIMIT BREAK: Healing Wind", "LIMIT"
+        else: move, mtype = "Materia: Cure2", "MAGIC"
+    elif "Tifa" in name:
+        if level >= 10: move, mtype = "LIMIT BREAK: Final Heaven", "LIMIT"
+        elif level >= 7: move, mtype = "LIMIT BREAK: Dolphin Blow", "LIMIT"
+        elif level >= 4: move, mtype = "LIMIT BREAK: Somersault", "LIMIT"
+        elif level >= 2: move, mtype = "LIMIT BREAK: Beat Rush", "LIMIT"
+        else: move, mtype = "Materia: Ice2", "MAGIC"
+    elif "Yuffie" in name:
+        if level >= 10: move, mtype = "LIMIT BREAK: All Creation", "LIMIT"
+        elif level >= 7: move, mtype = "LIMIT BREAK: Landslide", "LIMIT"
+        elif level >= 4: move, mtype = "LIMIT BREAK: Clear Head", "LIMIT"
+        elif level >= 2: move, mtype = "LIMIT BREAK: Greased Lightning", "LIMIT"
+        else: move, mtype = "Materia: Fire2", "MAGIC"
+    elif "Jessie" in name:
+        if level >= 8: move, mtype = "Tactical: Flash Strike", "TECH"
+        elif level >= 4: move, mtype = "Tactical: Grenade Burst", "TECH"
+        else: move, mtype = "Materia: Bio", "MAGIC"
+    elif "Vincent" in name:
+        if level >= 10: move, mtype = "LIMIT BREAK: Chaos (Satan Slam)", "LIMIT"
+        elif level >= 7: move, mtype = "LIMIT BREAK: Hellmasker", "LIMIT"
+        elif level >= 4: move, mtype = "LIMIT BREAK: Death Gigas", "LIMIT"
+        elif level >= 2: move, mtype = "LIMIT BREAK: Galian Beast", "LIMIT"
+        else: move, mtype = "Materia: Comet", "MAGIC"
+    else:
+        move, mtype = "Materia: Bolt", "MAGIC"
+
+    dmg = raw_exp * 10
+    return sname, move, mtype, dmg
 
 # --- RUNNING INIT SEQUENCING ---
 if "master_data" not in st.session_state:
@@ -511,7 +576,7 @@ with tabs[0]:
 
 
 # =============================================================================
-# TAB 2: SEPHIROTH BOSS BATTLE
+# TAB 2: SEPHIROTH BOSS BATTLE & DAILY TURN COMBAT LOG
 # =============================================================================
 with tabs[1]:
     st.title("🔥 Destiny's Crossroads: The Final Month-End Showdown")
@@ -574,6 +639,69 @@ with tabs[1]:
         """, unsafe_allow_html=True)
         st.progress(sephiroth_hp_pct)
         st.markdown(f"<p style='text-align: center; font-style: italic; color: #ffcc00 !important;'>{battlefield_status_flavor}</p>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- DYNAMIC DAILY BATTLE LOG SYSTEM ---
+    st.subheader("📜 Turn-by-Turn Battle Transcript (Daily Narrative Feed)")
+    
+    # Calculate Turn number from current calendar day or max days worked
+    max_days_logged = max([st.session_state.master_data[n].get("days_worked", 0) for n in STAFF_NAMES] + [0])
+    current_day_num = datetime.now().day
+    active_turn_num = max(max_days_logged, current_day_num)
+    
+    if total_accumulated_exp == 0 or active_turn_num == 0:
+        st.markdown("""
+            <div class="turn-spotlight-card">
+                <h3 style="color: #00ffcc; margin:0;">⚔️ ROUND 1: THE BATTLE BEGINS!</h3>
+                <p style="color: #aaa; margin-top: 5px;">Sephiroth has descended upon Midgar for the new monthly cycle! Total HP: 95,000. Assemble the party and log frontline volume to strike!</p>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Generate Today's Turn Highlight Box
+        st.markdown(f"""
+            <div class="turn-spotlight-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="color: #00ffcc; margin:0; font-family:'Courier New', monospace;">⚔️ TURN {active_turn_num} SPOTLIGHT — TODAY's BATTLE FRONT</h3>
+                    <span style="background:rgba(0,255,204,0.2); border:1px solid #00ffcc; border-radius:12px; padding:3px 12px; font-size:0.8rem; color:#00ffcc;">Month-To-Date Combat Turn</span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid rgba(0,255,204,0.3); margin: 10px 0;">
+                <p style="color: #fff; margin-bottom: 8px;"><strong>Party Assault Status:</strong> Total cumulative damage dealt to Sephiroth reached <strong style="color:#00ffcc;">{damage_dealt:,} HP</strong>.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # Build turn narrative timeline
+        turn_logs = []
+        for name in STAFF_NAMES:
+            p_stats = st.session_state.master_data[name]
+            p_res = get_stats(p_stats)
+            sname, move, mtype, dmg = get_character_combat_action(name, p_res["Level"], p_res["Raw_EXP"], p_stats)
+            
+            # Action line
+            if dmg > 0:
+                if mtype == "LIMIT":
+                    turn_logs.append(f"💥 <strong style='color:#00ffcc;'>{sname}</strong> unleashed <strong style='color:#ffcc00;'>{move}</strong>! Dealt <strong style='color:#00ffcc;'>{dmg:,} DMG</strong> to Sephiroth!")
+                else:
+                    turn_logs.append(f"⚔️ <strong style='color:#00ffcc;'>{sname}</strong> cast <strong style='color:#0099ff;'>{move}</strong>! Dealt <strong style='color:#00ffcc;'>{dmg:,} DMG</strong>.")
+            
+            # Sephiroth Counter-Strike line (HP Penalties based on Ans Rate & AWOL)
+            ans_val = p_stats["ans"]
+            awol_val = p_stats["awol"]
+            if awol_val > 0:
+                awol_dmg = awol_val * 9
+                turn_logs.append(f"🗡️ <strong style='color:#ff4b4b;'>Sephiroth</strong> cast <strong style='color:#ffcc00;'>Stigma</strong> on {sname}! Dealt <strong style='color:#ff4b4b;'>{awol_dmg} DMG</strong> (Triggered by {awol_val}m AWOL).")
+            if ans_val < 100:
+                ans_dmg = round(((1 - (ans_val / 100)) * 800))
+                turn_logs.append(f"⚡ <strong style='color:#ff4b4b;'>Sephiroth</strong> unleashed <strong style='color:#ff4b4b;'>Shadow Flare</strong> on {sname}! Dealt <strong style='color:#ff4b4b;'>{ans_dmg} DMG</strong> (Answer Rate dropped to {ans_val}%).")
+            if p_res["Current_HP_Raw"] == 0:
+                turn_logs.append(f"💀 <strong style='color:#ff4b4b;'>CRITICAL WARNING:</strong> {sname}'s Vitality (HP) has dropped to 0! Barrier broken!")
+
+        with st.expander(f"📖 View Combat Log History (Turn 1 to Turn {active_turn_num})", expanded=True):
+            for entry in turn_logs:
+                st.markdown(f'<div class="turn-history-entry">{entry}</div>', unsafe_allow_html=True)
+                
+            if st.button("⚡ Execute Party Turn Attack Visual FX"):
+                st.toast("⚔️ Party attacks unleashed! Sephiroth sustained heavy operational damage!", icon="💥")
 
     st.divider()
 
@@ -931,13 +1059,12 @@ with tabs[6]:
 
 
 # =============================================================================
-# TAB 8: PARTY SPIRIT — COLLECTIVE TEAM VIEW (NEW)
+# TAB 8: PARTY SPIRIT — COLLECTIVE TEAM VIEW
 # =============================================================================
 with tabs[7]:
     st.title("🌟 Party Spirit — Avalanche Collective Status")
     st.write("One view. One team. How are we doing together this month?")
 
-    # ── Shared calculations ───────────────────────────────────────────────────
     all_res = {n: get_stats(st.session_state.master_data[n]) for n in STAFF_NAMES}
 
     total_team_exp   = sum(r["Raw_EXP"] for r in all_res.values())
@@ -953,28 +1080,23 @@ with tabs[7]:
     avg_ans     = sum(st.session_state.master_data[n]["ans"]   for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
     sla_val     = float(st.session_state.master_data["team_stats"]["sla_pct"])
 
-    # Team score: missions hit out of 4
     missions_hit = 0
     if total_out   >= 500:   missions_hit += 1
     if avg_ans     >= 98.0:  missions_hit += 1
     if total_awol  <= 5.0:   missions_hit += 1
     if sla_val     >= 92.5:  missions_hit += 1
 
-    # Team title based on missions hit + avg level
     combined_score = missions_hit + int(avg_team_lvl / 3)
     team_title_idx = min(combined_score, len(TEAM_TITLES) - 1)
     team_title, team_flavour = TEAM_TITLES[team_title_idx]
 
-    # Party HP — average of individual HP percentages
     avg_hp_pct = sum(r["HP_Pct"] for r in all_res.values()) / len(all_res) if all_res else 0
     if avg_hp_pct > 0.75:   party_hp_color = "#00ffcc"
     elif avg_hp_pct > 0.40: party_hp_color = "#ffcc00"
     else:                    party_hp_color = "#ff4b4b"
 
-    # Mako Level — shared EXP pool scaled to a 0-100 gauge
     mako_level = min(100, round((total_team_exp / 3000) * 100))
 
-    # ── SECTION 1: Team identity banner ──────────────────────────────────────
     st.markdown(f"""
         <div style="background: linear-gradient(135deg, rgba(0,255,204,0.08) 0%, rgba(0,100,80,0.15) 100%);
                     border: 1px solid rgba(0,255,204,0.45); border-radius: 18px;
@@ -990,7 +1112,6 @@ with tabs[7]:
         </div>
     """, unsafe_allow_html=True)
 
-    # ── SECTION 2: Big stat row ───────────────────────────────────────────────
     s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.markdown(f"""
@@ -1023,7 +1144,6 @@ with tabs[7]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── SECTION 3: Mako Level gauge + Party HP side by side ──────────────────
     g1, g2 = st.columns(2)
 
     with g1:
@@ -1058,7 +1178,6 @@ with tabs[7]:
                 </div>
                 <div style="margin-top: 12px;">
         """, unsafe_allow_html=True)
-        # Individual HP mini pills
         pill_html = ""
         for name in STAFF_NAMES:
             r = all_res[name]
@@ -1071,10 +1190,7 @@ with tabs[7]:
 
     st.divider()
 
-    # ── SECTION 4: Collective volume chart (stacked bar per person) ───────────
     st.subheader("📊 Party Contribution Breakdown")
-    st.write("How each operative is contributing to the team's total output this month.")
-
     categories = ["Inbound", "Outbound", "Opened", "Closed"]
     chart_colors = ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00"]
     keys = ["in", "out", "open", "close"]
@@ -1103,13 +1219,9 @@ with tabs[7]:
 
     st.divider()
 
-    # ── SECTION 5: Support signals ────────────────────────────────────────────
     st.subheader("🔍 Party Support Signals")
-    st.write("Areas where the team might need a helping hand — framed for the group, not the individual.")
-
     signals_found = False
 
-    # Check answer rate
     for name in STAFF_NAMES:
         ans = st.session_state.master_data[name]["ans"]
         short = name.split(" ")[0]
@@ -1136,7 +1248,6 @@ with tabs[7]:
                 </div>
             """, unsafe_allow_html=True)
 
-    # Check HP
     for name in STAFF_NAMES:
         r = all_res[name]
         short = name.split(" ")[0]
@@ -1161,7 +1272,6 @@ with tabs[7]:
                 </div>
             """, unsafe_allow_html=True)
 
-    # AWOL pool
     if total_awol > 5:
         signals_found = True
         st.markdown(f"""
@@ -1184,7 +1294,6 @@ with tabs[7]:
             </div>
         """, unsafe_allow_html=True)
 
-    # SLA
     if sla_val > 0 and sla_val < 88:
         signals_found = True
         st.markdown(f"""
