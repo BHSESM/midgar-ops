@@ -222,9 +222,38 @@ st.markdown("""
         background: rgba(10, 10, 25, 0.7);
         border-left: 4px solid #0099ff;
         border-radius: 8px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
         font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+    .turn-history-heal {
+        background: rgba(0, 255, 204, 0.08);
+        border-left: 4px solid #00ffcc;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+    .turn-history-enemy {
+        background: rgba(255, 75, 75, 0.08);
+        border-left: 4px solid #ff4b4b;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+    .turn-history-rest {
+        background: rgba(255, 255, 255, 0.04);
+        border-left: 4px solid #888888;
+        border-radius: 8px;
+        padding: 8px 14px;
+        margin-bottom: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: #aaa;
     }
 
     /* Team Spirit Card */
@@ -413,6 +442,8 @@ def load_data():
             data["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
         if "outcome_stats" not in data:
             data["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
+        if "daily_turn_history" not in data:
+            data["daily_turn_history"] = []
         return data
 
     base = {
@@ -420,7 +451,7 @@ def load_data():
             "in": 0, "out": 0, "open": 0, "close": 0,
             "ans": 100, "awol": 0, "weight": 1.0,
             "spent": 0, "history": [], "days_worked": 0,
-            "side_quests": [], "active_quest": {}
+            "side_quests": [], "active_quest": {}, "daily_logs": []
         } for name in AVATARS.keys()
     }
     base["team_stats"] = {
@@ -429,72 +460,98 @@ def load_data():
     }
     base["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
     base["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
+    base["daily_turn_history"] = []
     return base
 
-# --- CLASSIC FFVII COMBAT SPELL & LIMIT BREAK ENGINE ---
-def get_character_combat_action(name, level, raw_exp, stats):
-    """Generates classic PS1 FF7 moves based on level and character identity."""
+# --- SMART DELTA COMBAT ACTION CALCULATOR ---
+def compute_daily_delta_actions(name, level, delta_in, delta_out, delta_open, delta_close, day_ans, delta_awol):
+    """Calculates daily combat turns based on MTD DELTAS (difference from previous day)."""
     sname = name.split(" ")[0]
-    
-    # Classic FFVII Limit Breaks & Materia Moves per character
-    if "Cloud" in name:
-        if level >= 10: move, mtype = "LIMIT BREAK: Omnislash", "LIMIT"
-        elif level >= 7: move, mtype = "LIMIT BREAK: Climhazzard", "LIMIT"
-        elif level >= 4: move, mtype = "LIMIT BREAK: Cross-Slash", "LIMIT"
-        elif level >= 2: move, mtype = "LIMIT BREAK: Braver", "LIMIT"
-        else: move, mtype = "Materia: Bolt2", "MAGIC"
-    elif "Aerith" in name:
-        if level >= 10: move, mtype = "LIMIT BREAK: Great Gospel", "LIMIT"
-        elif level >= 7: move, mtype = "LIMIT BREAK: Planet's Protection", "LIMIT"
-        elif level >= 4: move, mtype = "LIMIT BREAK: Breath of the Earth", "LIMIT"
-        elif level >= 2: move, mtype = "LIMIT BREAK: Healing Wind", "LIMIT"
-        else: move, mtype = "Materia: Cure2", "MAGIC"
-    elif "Tifa" in name:
-        if level >= 10: move, mtype = "LIMIT BREAK: Final Heaven", "LIMIT"
-        elif level >= 7: move, mtype = "LIMIT BREAK: Dolphin Blow", "LIMIT"
-        elif level >= 4: move, mtype = "LIMIT BREAK: Somersault", "LIMIT"
-        elif level >= 2: move, mtype = "LIMIT BREAK: Beat Rush", "LIMIT"
-        else: move, mtype = "Materia: Ice2", "MAGIC"
-    elif "Yuffie" in name:
-        if level >= 10: move, mtype = "LIMIT BREAK: All Creation", "LIMIT"
-        elif level >= 7: move, mtype = "LIMIT BREAK: Landslide", "LIMIT"
-        elif level >= 4: move, mtype = "LIMIT BREAK: Clear Head", "LIMIT"
-        elif level >= 2: move, mtype = "LIMIT BREAK: Greased Lightning", "LIMIT"
-        else: move, mtype = "Materia: Fire2", "MAGIC"
-    elif "Jessie" in name:
-        if level >= 8: move, mtype = "Tactical: Flash Strike", "TECH"
-        elif level >= 4: move, mtype = "Tactical: Grenade Burst", "TECH"
-        else: move, mtype = "Materia: Bio", "MAGIC"
-    elif "Vincent" in name:
-        if level >= 10: move, mtype = "LIMIT BREAK: Chaos (Satan Slam)", "LIMIT"
-        elif level >= 7: move, mtype = "LIMIT BREAK: Hellmasker", "LIMIT"
-        elif level >= 4: move, mtype = "LIMIT BREAK: Death Gigas", "LIMIT"
-        elif level >= 2: move, mtype = "LIMIT BREAK: Galian Beast", "LIMIT"
-        else: move, mtype = "Materia: Comet", "MAGIC"
-    else:
-        move, mtype = "Materia: Bolt", "MAGIC"
+    daily_vol = delta_in + delta_out + delta_open + delta_close
+    actions = []
 
-    dmg = raw_exp * 10
-    return sname, move, mtype, dmg
+    # OFF-DUTY / RESTING CHECK
+    if daily_vol <= 0 and delta_awol <= 0:
+        actions.append({
+            "type": "rest",
+            "text": f"💤 <strong>{sname}</strong> was resting / off-duty for this shift."
+        })
+        return actions
+
+    # 1. ATTACK ACTIONS (from volume delta)
+    if daily_vol > 0:
+        if "Cloud" in name:
+            move = "LIMIT BREAK: Cross-Slash" if daily_vol >= 25 else ("LIMIT BREAK: Braver" if daily_vol >= 15 else "Materia: Bolt2")
+        elif "Aerith" in name:
+            move = "LIMIT BREAK: Breath of the Earth" if daily_vol >= 20 else ("LIMIT BREAK: Healing Wind" if daily_vol >= 10 else "Materia: Bolt")
+        elif "Tifa" in name:
+            move = "LIMIT BREAK: Somersault" if daily_vol >= 25 else ("LIMIT BREAK: Beat Rush" if daily_vol >= 15 else "Materia: Ice2")
+        elif "Yuffie" in name:
+            move = "LIMIT BREAK: Landslide" if daily_vol >= 25 else ("LIMIT BREAK: Greased Lightning" if daily_vol >= 15 else "Materia: Fire2")
+        elif "Jessie" in name:
+            move = "Tactical: Flash Strike" if daily_vol >= 20 else "Tactical: Grenade Burst"
+        elif "Vincent" in name:
+            move = "LIMIT BREAK: Galian Beast" if daily_vol >= 20 else "Materia: Comet"
+        else:
+            move = "Materia: Bolt"
+
+        dmg = daily_vol * 150
+        actions.append({
+            "type": "attack",
+            "text": f"⚔️ <strong>{sname}</strong> executed <strong>{move}</strong>! Dealt <strong style='color:#00ffcc;'>{dmg:,} DMG</strong> to Sephiroth! ({daily_vol} items completed today)",
+            "damage": dmg
+        })
+
+    # 2. HEALING / SUPPORT ACTIONS (Cure, Cure2, Cure3)
+    if day_ans == 100 and delta_awol == 0:
+        actions.append({
+            "type": "heal",
+            "text": f"💚 <strong>{sname}</strong> cast <strong style='color:#00ffcc;'>Materia: Cure3</strong>! Perfect Comms (100% Ans & 0m AWOL) restored <strong style='color:#00ffcc;'>+150 HP</strong> to Vitality shield!",
+            "heal": 150
+        })
+    elif day_ans >= 98 and delta_awol == 0:
+        actions.append({
+            "type": "heal",
+            "text": f"🌿 <strong>{sname}</strong> cast <strong style='color:#00ffcc;'>Materia: Cure2</strong>! Solid Comms ({day_ans}% Ans) restored <strong style='color:#00ffcc;'>+80 HP</strong>!",
+            "heal": 80
+        })
+
+    # 3. SEPHIROTH COUNTER-ATTACKS (Stigma for AWOL delta & Shadow Flare for Ans Rate drop)
+    if delta_awol > 0:
+        awol_dmg = delta_awol * 9
+        actions.append({
+            "type": "enemy",
+            "text": f"🗡️ <strong style='color:#ff4b4b;'>Sephiroth</strong> cast <strong style='color:#ffcc00;'>Stigma</strong> on {sname}! Dealt <strong style='color:#ff4b4b;'>{awol_dmg} DMG</strong> (Triggered by {delta_awol}m new AWOL delay)."
+        })
+    if day_ans < 100:
+        ans_dmg = round(((1 - (day_ans / 100)) * 800))
+        actions.append({
+            "type": "enemy",
+            "text": f"⚡ <strong style='color:#ff4b4b;'>Sephiroth</strong> unleashed <strong style='color:#ff4b4b;'>Shadow Flare</strong> on {sname}! Dealt <strong style='color:#ff4b4b;'>{ans_dmg} DMG</strong> (Answer Rate at {day_ans}%)."
+        })
+
+    return actions
 
 # --- RUNNING INIT SEQUENCING ---
 if "master_data" not in st.session_state:
     st.session_state.master_data = load_data()
 
 for _name in list(st.session_state.master_data.keys()):
-    if _name not in ["team_stats", "volume_stats", "outcome_stats"]:
+    if _name not in ["team_stats", "volume_stats", "outcome_stats", "daily_turn_history"]:
         st.session_state.master_data[_name].setdefault("days_worked", 0)
         st.session_state.master_data[_name].setdefault("side_quests", [])
         st.session_state.master_data[_name].setdefault("active_quest", {})
         st.session_state.master_data[_name].setdefault("history", [])
         st.session_state.master_data[_name].setdefault("spent", 0)
+        st.session_state.master_data[_name].setdefault("daily_logs", [])
 
 st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
 st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
+st.session_state.master_data.setdefault("daily_turn_history", [])
 
 STAFF_NAMES = [
     k for k in st.session_state.master_data.keys() 
-    if k not in ["team_stats", "volume_stats", "outcome_stats"] 
+    if k not in ["team_stats", "volume_stats", "outcome_stats", "daily_turn_history"] 
     and isinstance(st.session_state.master_data[k], dict) 
     and "in" in st.session_state.master_data[k]
 ]
@@ -576,7 +633,7 @@ with tabs[0]:
 
 
 # =============================================================================
-# TAB 2: SEPHIROTH BOSS BATTLE & DAILY TURN COMBAT LOG
+# TAB 2: SEPHIROTH BOSS BATTLE & CHRONOLOGICAL COMBAT LOG
 # =============================================================================
 with tabs[1]:
     st.title("🔥 Destiny's Crossroads: The Final Month-End Showdown")
@@ -642,66 +699,49 @@ with tabs[1]:
 
     st.divider()
 
-    # --- DYNAMIC DAILY BATTLE LOG SYSTEM ---
-    st.subheader("📜 Turn-by-Turn Battle Transcript (Daily Narrative Feed)")
+    # --- DAY-BY-DAY COMBAT LOG FEED ---
+    st.subheader("📜 Day-by-Day Combat Progression Log")
     
-    # Calculate Turn number from current calendar day or max days worked
-    max_days_logged = max([st.session_state.master_data[n].get("days_worked", 0) for n in STAFF_NAMES] + [0])
-    current_day_num = datetime.now().day
-    active_turn_num = max(max_days_logged, current_day_num)
-    
-    if total_accumulated_exp == 0 or active_turn_num == 0:
+    display_turns = st.session_state.master_data.get("daily_turn_history", [])
+
+    if not display_turns or total_accumulated_exp == 0:
         st.markdown("""
             <div class="turn-spotlight-card">
-                <h3 style="color: #00ffcc; margin:0;">⚔️ ROUND 1: THE BATTLE BEGINS!</h3>
-                <p style="color: #aaa; margin-top: 5px;">Sephiroth has descended upon Midgar for the new monthly cycle! Total HP: 95,000. Assemble the party and log frontline volume to strike!</p>
+                <h3 style="color: #00ffcc; margin:0;">⚔️ TURN 1: THE CAMPAIGN BEGINS!</h3>
+                <p style="color: #aaa; margin-top: 5px;">Sephiroth has appeared for the new month! Total HP: 95,000. Enter daily operational updates in Admin to drive back the Darkness!</p>
             </div>
         """, unsafe_allow_html=True)
     else:
-        # Generate Today's Turn Highlight Box
+        latest_turn = display_turns[-1]
         st.markdown(f"""
             <div class="turn-spotlight-card">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="color: #00ffcc; margin:0; font-family:'Courier New', monospace;">⚔️ TURN {active_turn_num} SPOTLIGHT — TODAY's BATTLE FRONT</h3>
-                    <span style="background:rgba(0,255,204,0.2); border:1px solid #00ffcc; border-radius:12px; padding:3px 12px; font-size:0.8rem; color:#00ffcc;">Month-To-Date Combat Turn</span>
+                    <h3 style="color: #00ffcc; margin:0; font-family:'Courier New', monospace;">⚔️ TURN {latest_turn['turn']} ({latest_turn.get('date_label', 'Today')}) — LATEST COMBAT RECAP</h3>
+                    <span style="background:rgba(0,255,204,0.2); border:1px solid #00ffcc; border-radius:12px; padding:3px 12px; font-size:0.8rem; color:#00ffcc;">Active Combat Round</span>
                 </div>
                 <hr style="border: 0; border-top: 1px solid rgba(0,255,204,0.3); margin: 10px 0;">
-                <p style="color: #fff; margin-bottom: 8px;"><strong>Party Assault Status:</strong> Total cumulative damage dealt to Sephiroth reached <strong style="color:#00ffcc;">{damage_dealt:,} HP</strong>.</p>
+                <p style="color: #fff; margin-bottom: 8px;"><strong>Party Status:</strong> Sephiroth has sustained <strong style="color:#00ffcc;">{damage_dealt:,} total DMG</strong> MTD.</p>
             </div>
         """, unsafe_allow_html=True)
 
-        # Build turn narrative timeline
-        turn_logs = []
-        for name in STAFF_NAMES:
-            p_stats = st.session_state.master_data[name]
-            p_res = get_stats(p_stats)
-            sname, move, mtype, dmg = get_character_combat_action(name, p_res["Level"], p_res["Raw_EXP"], p_stats)
+        st.markdown("#### 📅 Day-by-Day Turn Archives")
+        for turn_data in reversed(display_turns):
+            turn_num = turn_data["turn"]
+            turn_label = turn_data.get("date_label", f"Day {turn_num}")
             
-            # Action line
-            if dmg > 0:
-                if mtype == "LIMIT":
-                    turn_logs.append(f"💥 <strong style='color:#00ffcc;'>{sname}</strong> unleashed <strong style='color:#ffcc00;'>{move}</strong>! Dealt <strong style='color:#00ffcc;'>{dmg:,} DMG</strong> to Sephiroth!")
+            with st.expander(f"🔹 Turn {turn_num} ({turn_label}) — Combat Action Report", expanded=(turn_num == latest_turn["turn"])):
+                if not turn_data.get("actions"):
+                    st.write("No operational frontline actions logged for this turn.")
                 else:
-                    turn_logs.append(f"⚔️ <strong style='color:#00ffcc;'>{sname}</strong> cast <strong style='color:#0099ff;'>{move}</strong>! Dealt <strong style='color:#00ffcc;'>{dmg:,} DMG</strong>.")
-            
-            # Sephiroth Counter-Strike line (HP Penalties based on Ans Rate & AWOL)
-            ans_val = p_stats["ans"]
-            awol_val = p_stats["awol"]
-            if awol_val > 0:
-                awol_dmg = awol_val * 9
-                turn_logs.append(f"🗡️ <strong style='color:#ff4b4b;'>Sephiroth</strong> cast <strong style='color:#ffcc00;'>Stigma</strong> on {sname}! Dealt <strong style='color:#ff4b4b;'>{awol_dmg} DMG</strong> (Triggered by {awol_val}m AWOL).")
-            if ans_val < 100:
-                ans_dmg = round(((1 - (ans_val / 100)) * 800))
-                turn_logs.append(f"⚡ <strong style='color:#ff4b4b;'>Sephiroth</strong> unleashed <strong style='color:#ff4b4b;'>Shadow Flare</strong> on {sname}! Dealt <strong style='color:#ff4b4b;'>{ans_dmg} DMG</strong> (Answer Rate dropped to {ans_val}%).")
-            if p_res["Current_HP_Raw"] == 0:
-                turn_logs.append(f"💀 <strong style='color:#ff4b4b;'>CRITICAL WARNING:</strong> {sname}'s Vitality (HP) has dropped to 0! Barrier broken!")
-
-        with st.expander(f"📖 View Combat Log History (Turn 1 to Turn {active_turn_num})", expanded=True):
-            for entry in turn_logs:
-                st.markdown(f'<div class="turn-history-entry">{entry}</div>', unsafe_allow_html=True)
-                
-            if st.button("⚡ Execute Party Turn Attack Visual FX"):
-                st.toast("⚔️ Party attacks unleashed! Sephiroth sustained heavy operational damage!", icon="💥")
+                    for act in turn_data["actions"]:
+                        if act["type"] == "attack":
+                            st.markdown(f'<div class="turn-history-entry">{act["text"]}</div>', unsafe_allow_html=True)
+                        elif act["type"] == "heal":
+                            st.markdown(f'<div class="turn-history-heal">{act["text"]}</div>', unsafe_allow_html=True)
+                        elif act["type"] == "enemy":
+                            st.markdown(f'<div class="turn-history-enemy">{act["text"]}</div>', unsafe_allow_html=True)
+                        elif act["type"] == "rest":
+                            st.markdown(f'<div class="turn-history-rest">{act["text"]}</div>', unsafe_allow_html=True)
 
     st.divider()
 
@@ -845,7 +885,7 @@ with tabs[3]:
             st.write("No historical side quests recorded for this tactical frame.")
 
 # =============================================================================
-# TAB 5: DAILY SNAPSHOT HUD
+# TAB 5: DAILY SNAPSHOT HUD (UI READ-ONLY VIEW)
 # =============================================================================
 with tabs[4]:
     st.title("⚡ Daily Tactical Snapshot Node")
@@ -1398,6 +1438,88 @@ with tabs[10]:
     if admin_access == vault_password:
         st.success("Access Granted. Systems online.")
 
+        # --- MODULE 1: INDIVIDUAL OPERATIVES & AUTOMATIC DELTA BATTLE LOG ---
+        st.subheader("👤 Module 1: Update Cumulative MTD Operative Stats & Daily Turn")
+        st.write("Enter your cumulative MTD totals below. The engine will automatically calculate the difference from yesterday and record today's combat turn!")
+        
+        turn_date_label = st.text_input("Date Label for Today's Turn", value=datetime.now().strftime("%d/%m"))
+        
+        updated_operative_inputs = {}
+        for name in STAFF_NAMES:
+            operative_vals = st.session_state.master_data[name]
+            st.markdown(f"##### **👤 {name}**")
+            f1, f2, f3, f4, f5, f6 = st.columns(6)
+            with f1: val_in   = st.number_input("Inbound", value=int(operative_vals["in"]), key=f"adm_in_{name}")
+            with f2: val_out  = st.number_input("Outbound", value=int(operative_vals["out"]), key=f"adm_out_{name}")
+            with f3: val_open = st.number_input("Opened", value=int(operative_vals["open"]), key=f"adm_open_{name}")
+            with f4: val_close= st.number_input("Closed", value=int(operative_vals["close"]), key=f"adm_close_{name}")
+            with f5: val_ans  = st.slider("Ans %", 0, 100, int(operative_vals["ans"]), key=f"adm_ans_{name}")
+            with f6: val_awol = st.number_input("AWOL (m)", value=int(operative_vals["awol"]), key=f"adm_awol_{name}")
+            
+            val_days = st.number_input("Days Worked (MTD)", value=int(operative_vals.get("days_worked", 0)), min_value=0, step=1, key=f"adm_days_{name}")
+            
+            updated_operative_inputs[name] = {
+                "in": val_in, "out": val_out, "open": val_open, "close": val_close,
+                "ans": val_ans, "awol": val_awol, "days_worked": val_days
+            }
+            st.markdown("<hr style='margin: 10px 0; border-color: rgba(0,255,204,0.1);'>", unsafe_allow_html=True)
+
+        if st.button("🚀 Commit MTD Stats & Compute Daily Combat Turn", type="primary"):
+            turn_history = st.session_state.master_data.get("daily_turn_history", [])
+            current_turn_count = len(turn_history) + 1
+            turn_actions = []
+
+            for name in STAFF_NAMES:
+                new_data = updated_operative_inputs[name]
+                old_data = st.session_state.master_data[name]
+                logs = old_data.get("daily_logs", [])
+                
+                # Retrieve last recorded MTD snapshot to calculate daily DELTA
+                if logs:
+                    prev = logs[-1]
+                    prev_in, prev_out = prev.get("in", 0), prev.get("out", 0)
+                    prev_open, prev_close = prev.get("open", 0), prev.get("close", 0)
+                    prev_awol = prev.get("awol", 0)
+                else:
+                    prev_in, prev_out, prev_open, prev_close, prev_awol = 0, 0, 0, 0, 0
+
+                # Detect Month Reset (if new numbers are smaller than previous, reset baseline to 0)
+                if new_data["in"] < prev_in or new_data["out"] < prev_out:
+                    prev_in, prev_out, prev_open, prev_close, prev_awol = 0, 0, 0, 0, 0
+
+                delta_in = max(0, new_data["in"] - prev_in)
+                delta_out = max(0, new_data["out"] - prev_out)
+                delta_open = max(0, new_data["open"] - prev_open)
+                delta_close = max(0, new_data["close"] - prev_close)
+                delta_awol = max(0, new_data["awol"] - prev_awol)
+
+                r = get_stats(old_data)
+                acts = compute_daily_delta_actions(name, r["Level"], delta_in, delta_out, delta_open, delta_close, new_data["ans"], delta_awol)
+                turn_actions.extend(acts)
+
+                # Append daily log snapshot
+                old_data["daily_logs"].append({
+                    "day": current_turn_count, "date": turn_date_label,
+                    "in": new_data["in"], "out": new_data["out"],
+                    "open": new_data["open"], "close": new_data["close"],
+                    "ans": new_data["ans"], "awol": new_data["awol"]
+                })
+
+                # Update master cumulative stats
+                old_data.update(new_data)
+
+            # Record turn in global history
+            st.session_state.master_data["daily_turn_history"].append({
+                "turn": current_turn_count,
+                "date_label": turn_date_label,
+                "actions": turn_actions
+            })
+
+            st.success(f"Turn #{current_turn_count} ({turn_date_label}) calculated & recorded! Remember to copy export string below into Secrets to preserve!")
+            st.rerun()
+
+        st.divider()
+
         # --- MODULE 0: SIDE QUEST CONSOLE ---
         st.subheader("🐉 Module 0: Tavern Dispatch Side Quest Control Board")
         sq_adm_col1, sq_adm_col2 = st.columns(2)
@@ -1465,33 +1587,6 @@ with tabs[10]:
             else:
                 st.write("This operative does not currently have an unresolved active side quest assignment.")
                 
-        st.divider()
-
-        # --- MODULE 1: INDIVIDUAL OPERATIVES ---
-        st.subheader("👤 Module 1: Update Individual Operative Metrics")
-        target_name = st.selectbox("Select Operative to Update", STAFF_NAMES)
-        operative_vals = st.session_state.master_data[target_name]
-        form_col1, form_col2 = st.columns(2)
-        with form_col1:
-            val_in   = st.number_input("Inbound Calls", value=operative_vals["in"])
-            val_out  = st.number_input("Outbound Calls", value=operative_vals["out"])
-            val_ans  = st.slider("Answer Rate %", 0, 100, int(operative_vals["ans"]))
-            val_days = st.number_input("Days Worked (MTD)", value=operative_vals.get("days_worked", 0), min_value=0, step=1)
-        with form_col2:
-            val_open  = st.number_input("SD Tickets Opened", value=operative_vals["open"])
-            val_close = st.number_input("SD Tickets Closed", value=operative_vals["close"])
-            val_awol  = st.number_input("AWOL Minutes", value=operative_vals["awol"])
-        shift_weight = SHIFT_WEIGHTS.get(target_name, 1.0)
-        if shift_weight < 1.0:
-            st.info(f"Shift weight for **{target_name}** is x{shift_weight}. {int(val_days)} days worked -> **{round(val_days * shift_weight, 2)} weighted days**.")
-        if st.button("Commit Operative Stats to Lifestream"):
-            st.session_state.master_data[target_name].update({
-                "in": val_in, "out": val_out, "ans": val_ans,
-                "open": val_open, "close": val_close, "awol": val_awol,
-                "days_worked": int(val_days)
-            })
-            st.rerun()
-
         st.divider()
 
         # --- MODULE 2: GLOBALS & TEAM METRICS ---
