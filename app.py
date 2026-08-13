@@ -64,8 +64,8 @@ st.markdown("""
     /* Mini-Stat Grid (Inside Party Cards) */
     .mini-stat-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 8px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
         margin: 15px 0;
         padding: 10px;
         background: rgba(0,0,0,0.4);
@@ -73,16 +73,16 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.05);
     }
     .mini-stat-item {
-        font-size: 0.75rem !important;
+        font-size: 0.7rem !important;
         color: #aaa !important;
         text-align: center;
-        line-height: 1.3;
+        line-height: 1.2;
     }
     .mini-stat-value {
         display: block;
         color: #00ffcc !important;
         font-weight: bold;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
 
     /* Bounty Board Styling */
@@ -401,7 +401,8 @@ def load_data():
             "in": 0, "out": 0, "open": 0, "close": 0,
             "ans": 100, "awol": 0, "weight": 1.0,
             "spent": 0, "history": [], "days_worked": 0,
-            "side_quests": [], "active_quest": {}
+            "side_quests": [], "active_quest": {},
+            "avg_ans_time": "00:00:15", "avg_call_time": "00:03:30"
         } for name in AVATARS.keys()
     }
     base["team_stats"] = {
@@ -423,6 +424,8 @@ for _name in list(st.session_state.master_data.keys()):
         st.session_state.master_data[_name].setdefault("active_quest", {})
         st.session_state.master_data[_name].setdefault("history", [])
         st.session_state.master_data[_name].setdefault("spent", 0)
+        st.session_state.master_data[_name].setdefault("avg_ans_time", "00:00:15")
+        st.session_state.master_data[_name].setdefault("avg_call_time", "00:03:30")
 
 st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
 st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
@@ -436,9 +439,17 @@ STAFF_NAMES = [
 
 if "daily_snapshot_data" not in st.session_state:
     st.session_state.daily_snapshot_data = {
-        name: {"answered": 0, "pct": "100%", "outbound": 0, "open": 0, "close": 0}
+        name: {
+            "answered": 0, "pct": "100%", "outbound": 0, "open": 0, "close": 0,
+            "avg_ans_time": "00:00:15", "avg_call_time": "00:03:30"
+        }
         for name in STAFF_NAMES
     }
+
+for name in STAFF_NAMES:
+    if name in st.session_state.daily_snapshot_data:
+        st.session_state.daily_snapshot_data[name].setdefault("avg_ans_time", "00:00:15")
+        st.session_state.daily_snapshot_data[name].setdefault("avg_call_time", "00:03:30")
 
 HONORS_MAP = [
     ("📞 Inbound King/Queen", "in", True),
@@ -482,9 +493,11 @@ with tabs[0]:
                         <div class="mini-stat-item">IN<span class="mini-stat-value">{stats['in']}</span></div>
                         <div class="mini-stat-item">OUT<span class="mini-stat-value">{stats['out']}</span></div>
                         <div class="mini-stat-item">ANS%<span class="mini-stat-value">{stats['ans']}%</span></div>
+                        <div class="mini-stat-item">AWOL<span class="mini-stat-value">{stats['awol']}m</span></div>
                         <div class="mini-stat-item">OPEN<span class="mini-stat-value">{stats['open']}</span></div>
                         <div class="mini-stat-item">CLOSE<span class="mini-stat-value">{stats['close']}</span></div>
-                        <div class="mini-stat-item">AWOL<span class="mini-stat-value">{stats['awol']}m</span></div>
+                        <div class="mini-stat-item">ANS T<span class="mini-stat-value">{stats.get('avg_ans_time', '00:00:15')}</span></div>
+                        <div class="mini-stat-item">CALL T<span class="mini-stat-value">{stats.get('avg_call_time', '00:03:30')}</span></div>
                     </div>
                 """, unsafe_allow_html=True)
                 
@@ -729,30 +742,34 @@ with tabs[4]:
         avatar_url = AVATARS.get(name, "")
         with stack_cols[idx % 2]:
             st.markdown(f"""
-                <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 35px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 230px;">
+                <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 230px;">
                     <div style="display: flex; align-items: center; margin-bottom: 22px;">
                         <img src="{avatar_url}" style="width: 85px; height: 85px; border-radius: 8px; border: 2px solid #00ffcc; box-shadow: 0 0 12px rgba(0,255,204,0.5); object-fit: contain; background-color: rgba(0,0,0,0.5); margin-right: 22px;">
                         <div>
                             <h2 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.75rem; font-weight: bold; text-shadow: 2px 2px 4px #000; letter-spacing: 0.5px;">{name}</h2>
                         </div>
                     </div>
-                    <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 1.0rem;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 0.9rem;">
                         <thead>
                             <tr style="background: rgba(0, 255, 204, 0.18); color: #00ffcc; border-bottom: 3px solid rgba(0, 255, 204, 0.4); font-weight: bold;">
-                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">Calls Ans</th>
-                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">Answer Rate</th>
-                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">Outbound</th>
-                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">SD Opened</th>
-                                <th style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">SD Closed</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Calls Ans</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Ans %</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Outbound</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">SD Opened</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">SD Closed</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Avg Ans T</th>
+                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Avg Call T</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr style="font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.4); font-size: 1.35rem;">
-                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['answered']}</td>
-                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['pct']}</td>
-                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['outbound']}</td>
-                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12); color: #ff4b4b;">{active_snap['open']}</td>
-                                <td style="padding: 16px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['close']}</td>
+                            <tr style="font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.4); font-size: 1.15rem;">
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['answered']}</td>
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['pct']}</td>
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['outbound']}</td>
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #ff4b4b;">{active_snap['open']}</td>
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['close']}</td>
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap.get('avg_ans_time', '00:00:15')}</td>
+                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap.get('avg_call_time', '00:03:30')}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -763,22 +780,26 @@ with tabs[4]:
 
     with st.expander("🛠️ Open Operational Data Entry Terminal", expanded=False):
         st.write("Mass multi-row entry console system.")
-        new_answered, new_pct, new_outbound, new_open, new_close = {}, {}, {}, {}, {}
+        new_answered, new_pct, new_outbound, new_open, new_close, new_avg_ans, new_avg_call = {}, {}, {}, {}, {}, {}, {}
         for name in STAFF_NAMES:
             current_vals = st.session_state.daily_snapshot_data[name]
-            r_col0, r_col1, r_col2, r_col3, r_col4, r_col5 = st.columns([1.5, 1, 1, 1, 1, 1])
+            r_col0, r_col1, r_col2, r_col3, r_col4, r_col5, r_col6, r_col7 = st.columns([1.5, 1, 1, 1, 1, 1, 1, 1])
             with r_col0: st.markdown(f"<div style='padding-top:25px;'><strong>👤 {name}</strong></div>", unsafe_allow_html=True)
             with r_col1: new_answered[name] = st.number_input("Calls Ans", min_value=0, value=int(current_vals["answered"]), step=1, key=f"ans_{name}")
             with r_col2: new_pct[name] = st.text_input("Answer %", value=str(current_vals["pct"]), key=f"pct_{name}")
             with r_col3: new_outbound[name] = st.number_input("Outbound", min_value=0, value=int(current_vals["outbound"]), step=1, key=f"out_{name}")
             with r_col4: new_open[name] = st.number_input("SD Opened", min_value=0, value=int(current_vals["open"]), step=1, key=f"open_{name}")
             with r_col5: new_close[name] = st.number_input("SD Closed", min_value=0, value=int(current_vals["close"]), step=1, key=f"close_{name}")
+            with r_col6: new_avg_ans[name] = st.text_input("Avg Ans Time", value=str(current_vals.get("avg_ans_time", "00:00:15")), key=f"avg_ans_snap_{name}")
+            with r_col7: new_avg_call[name] = st.text_input("Avg Call Time", value=str(current_vals.get("avg_call_time", "00:03:30")), key=f"avg_call_snap_{name}")
                 
         if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
             for name in STAFF_NAMES:
                 st.session_state.daily_snapshot_data[name].update({
                     "answered": new_answered[name], "pct": new_pct[name] if new_pct[name] else "100%",
-                    "outbound": new_outbound[name], "open": new_open[name], "close": new_close[name]
+                    "outbound": new_outbound[name], "open": new_open[name], "close": new_close[name],
+                    "avg_ans_time": new_avg_ans[name] if new_avg_ans[name] else "00:00:15",
+                    "avg_call_time": new_avg_call[name] if new_avg_call[name] else "00:03:30"
                 })
             st.success("All snapshots preserved!")
             st.rerun()
@@ -794,6 +815,8 @@ with tabs[4]:
         daily_rows_matrix.append({
             "Operative": name, "Calls Answered": snap_item["answered"], "Answer Rate": snap_item["pct"],
             "Outbound Calls": snap_item["outbound"], "SD Opened": snap_item["open"], "SD Closed": snap_item["close"],
+            "Avg Answer Time": snap_item.get("avg_ans_time", "00:00:15"),
+            "Avg Time in Call": snap_item.get("avg_call_time", "00:03:30"),
             "Projected Daily GIL": f"💰 {projected_gil}"
         })
     st.table(pd.DataFrame(daily_rows_matrix))
@@ -811,6 +834,8 @@ with tabs[5]:
         data_rows.append({
             "Operative": name, "Inbound": s["in"], "Outbound": s["out"],
             "SD Opened": s["open"], "SD Closed": s["close"], "Ans Rate": f"{s['ans']}%",
+            "Avg Ans Time": s.get("avg_ans_time", "00:00:15"),
+            "Avg Time in Call": s.get("avg_call_time", "00:03:30"),
             "AWOL": f"{s['awol']}m", "Wallet": f"{res['GIL']} GIL"
         })
     st.table(pd.DataFrame(data_rows))
@@ -931,7 +956,7 @@ with tabs[6]:
 
 
 # =============================================================================
-# TAB 8: PARTY SPIRIT — COLLECTIVE TEAM VIEW (NEW)
+# TAB 8: PARTY SPIRIT — COLLECTIVE TEAM VIEW
 # =============================================================================
 with tabs[7]:
     st.title("🌟 Party Spirit — Avalanche Collective Status")
@@ -1368,10 +1393,12 @@ with tabs[10]:
             val_out  = st.number_input("Outbound Calls", value=operative_vals["out"])
             val_ans  = st.slider("Answer Rate %", 0, 100, int(operative_vals["ans"]))
             val_days = st.number_input("Days Worked (MTD)", value=operative_vals.get("days_worked", 0), min_value=0, step=1)
+            val_avg_ans_time = st.text_input("Average Answer Time (HH:MM:SS or MM:SS)", value=operative_vals.get("avg_ans_time", "00:00:15"))
         with form_col2:
             val_open  = st.number_input("SD Tickets Opened", value=operative_vals["open"])
             val_close = st.number_input("SD Tickets Closed", value=operative_vals["close"])
             val_awol  = st.number_input("AWOL Minutes", value=operative_vals["awol"])
+            val_avg_call_time = st.text_input("Average Time in Call (HH:MM:SS or MM:SS)", value=operative_vals.get("avg_call_time", "00:03:30"))
         shift_weight = SHIFT_WEIGHTS.get(target_name, 1.0)
         if shift_weight < 1.0:
             st.info(f"Shift weight for **{target_name}** is x{shift_weight}. {int(val_days)} days worked -> **{round(val_days * shift_weight, 2)} weighted days**.")
@@ -1379,7 +1406,9 @@ with tabs[10]:
             st.session_state.master_data[target_name].update({
                 "in": val_in, "out": val_out, "ans": val_ans,
                 "open": val_open, "close": val_close, "awol": val_awol,
-                "days_worked": int(val_days)
+                "days_worked": int(val_days),
+                "avg_ans_time": val_avg_ans_time,
+                "avg_call_time": val_avg_call_time
             })
             st.rerun()
 
