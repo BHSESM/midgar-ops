@@ -743,6 +743,46 @@ async function copyImg(id) {
     setS('⚠️ Your browser blocked copying – use Download instead');
   }
 }
+// ---- Multi-section helpers (only used when SECTIONS is set) ----
+let nextIdx = 0;
+async function copyNext() {
+  if (!SECTIONS.length) return;
+  const [id, label] = SECTIONS[nextIdx];
+  await copyImg(id);
+  setS(`✅ Copied ${nextIdx + 1}/${SECTIONS.length}: ${label} – paste, then click again`);
+  nextIdx = (nextIdx + 1) % SECTIONS.length;
+  const btn = document.getElementById('nextbtn');
+  if (btn) btn.textContent = `➡️ Copy next (${nextIdx + 1}/${SECTIONS.length}: ${SECTIONS[nextIdx][1]})`;
+}
+async function copyAllHtml() {
+  // Experimental: puts every section on the clipboard as one rich-text block of images.
+  if (!ready()) return;
+  setS('Capturing all sections…');
+  try {
+    const build = (async () => {
+      let h = '<div>';
+      for (const [id] of SECTIONS) {
+        const c = await render(id);
+        h += `<img src="${c.toDataURL('image/png')}" width="${Math.round(c.width / 2)}"><br>`;
+      }
+      return new Blob([h + '</div>'], { type: 'text/html' });
+    })();
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': build })]);
+    setS('🧪 Copied all sections – paste into Teams. If nothing appears, use "Copy next" or "Download all" instead.');
+  } catch (e) {
+    console.error(e);
+    setS('⚠️ This browser cannot copy several images at once – use "Copy next" or "Download all" instead');
+  }
+}
+async function dlAll() {
+  if (!ready()) return;
+  for (let i = 0; i < SECTIONS.length; i++) {
+    setS(`Saving ${i + 1}/${SECTIONS.length}…`);
+    await dlImg(SECTIONS[i][0]);
+    await new Promise(r => setTimeout(r, 400));
+  }
+  setS('💾 All sections saved – select them in Downloads and drag them into Teams together');
+}
 async function dlImg(id) {
   if (!ready()) return;
   setS('Capturing…');
@@ -767,7 +807,12 @@ def capture_component(inner_html, extra_css, height, filename, sections=None):
     if sections:
         sec_buttons = ("<div class='toolbar sub'><span class='hint'>Copy one section (shows bigger in Teams):</span>"
                        + "".join(f"<button onclick=\"copyImg('{sid}')\">{lbl}</button>" for sid, lbl in sections)
-                       + "</div>")
+                       + "</div>"
+                       "<div class='toolbar sub'><span class='hint'>All sections:</span>"
+                       f"<button id='nextbtn' onclick='copyNext()'>➡️ Copy next (1/{len(sections)}: {sections[0][1]})</button>"
+                       "<button onclick='dlAll()'>💾 Download all</button>"
+                       "<button onclick='copyAllHtml()'>🧪 Copy all at once (experimental)</button>"
+                       "</div>")
     doc = (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>"
@@ -778,7 +823,7 @@ def capture_component(inner_html, extra_css, height, filename, sections=None):
         "<span id='st'></span></div>"
         f"{sec_buttons}"
         f"<div id='cap'>{inner_html}</div>"
-        f"<script>const FILENAME = {json.dumps(filename)};{CAPTURE_JS}</script>"
+        f"<script>const FILENAME = {json.dumps(filename)};const SECTIONS = {json.dumps(sections or [], ensure_ascii=False)};{CAPTURE_JS}</script>"
         "</body></html>"
     )
     if hasattr(st, "iframe"):
