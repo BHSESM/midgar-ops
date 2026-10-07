@@ -1151,6 +1151,11 @@ def fmt_pct(v):
 def build_snapshot_html():
     snaps = st.session_state.daily_snapshot_data
     stamp = st.session_state.get("snapshot_stamp", "not yet updated today")
+    # Only show people with something to report (answer rate alone doesn't count), e.g. skip anyone on leave.
+    # If nobody has numbers yet, show everyone so the image is never empty.
+    active = [n for n in STAFF_NAMES
+              if snaps[n]["answered"] + snaps[n]["outbound"] + snaps[n]["open"] + snaps[n]["close"] > 0]
+    shown = active or STAFF_NAMES
     tot_ans = sum(snaps[n]["answered"] for n in STAFF_NAMES)
     tot_out = sum(snaps[n]["outbound"] for n in STAFF_NAMES)
     tot_open = sum(snaps[n]["open"] for n in STAFF_NAMES)
@@ -1163,7 +1168,7 @@ def build_snapshot_html():
         f"<div><b>{tot_open}</b>SD opened</div><div><b>{tot_close}</b>SD closed</div></div>",
     ]
     cards = ""
-    for name in STAFF_NAMES:
+    for name in shown:
         s = snaps[name]
         cards += (
             "<div class='sc'>"
@@ -1174,7 +1179,7 @@ def build_snapshot_html():
             f"<td style='color:#ffcc00;'>💰 {snapshot_gil(name, s)}</td></tr></table></div>"
         )
     parts.append(f"<div class='grid'>{cards}</div>")
-    height = 300 + math.ceil(len(STAFF_NAMES) / 2) * 175
+    height = 300 + math.ceil(len(shown) / 2) * 175
     return "".join(parts), height
 
 
@@ -1457,7 +1462,8 @@ with tab_quests:
 # =============================================================================
 with tab_snapshot:
     st.title("⚡ Daily Tactical Snapshot Node")
-    st.caption("In-day numbers only – these are not saved and reset when the page is refreshed. Press **Copy image** to paste into Teams.")
+    st.caption("In-day numbers only – these are not saved and reset when the page is refreshed. Press **Copy image** to paste into Teams. "
+               "Anyone with no numbers yet (e.g. on leave) is left out of the image.")
     snap_html, snap_height = build_snapshot_html()
     capture_component(snap_html, SNAP_CSS, snap_height,
                       f"midgar-snapshot-{now_uk().strftime('%Y-%m-%d-%H%M')}.png")
