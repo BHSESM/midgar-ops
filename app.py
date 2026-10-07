@@ -6,6 +6,7 @@ import json
 import re
 import html
 import calendar
+import unicodedata
 import tomllib
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
@@ -702,6 +703,10 @@ body { margin: 0; background: transparent; font-family: 'Segoe UI', Arial, sans-
 }
 .toolbar button:hover { background: rgba(0,255,204,0.25); }
 #st { color: #ccc; font-size: 13px; }
+.toolbar.sub { flex-wrap: wrap; margin-top: -4px; }
+.toolbar.sub button { font-size: 13px; padding: 6px 12px; }
+.hint { color: #9adfd0; font-size: 13px; }
+.solo { padding: 24px !important; background: #0a0e13; border-radius: 14px; }
 #cap { display: inline-block; background: #0a0e13; padding: 22px; border-radius: 14px; border: 1px solid rgba(0,255,204,0.35); }
 .mono { font-family: 'Courier New', monospace; }
 .bar { background: rgba(255,255,255,0.08); border-radius: 4px; height: 9px; overflow: hidden; }
@@ -711,20 +716,26 @@ body { margin: 0; background: transparent; font-family: 'Segoe UI', Arial, sans-
 CAPTURE_JS = """
 const statusEl = document.getElementById('st');
 function setS(t) { statusEl.textContent = t; }
-function render() {
-  return html2canvas(document.getElementById('cap'),
-    { useCORS: true, backgroundColor: '#0a0e13', scale: 2, logging: false });
+async function render(id) {
+  const el = document.getElementById(id || 'cap');
+  const solo = id && id !== 'cap';
+  if (solo) el.classList.add('solo');
+  try {
+    return await html2canvas(el, { useCORS: true, backgroundColor: '#0a0e13', scale: 2, logging: false });
+  } finally {
+    if (solo) el.classList.remove('solo');
+  }
 }
 function toBlob(c) { return new Promise(r => c.toBlob(r, 'image/png')); }
 function ready() {
   if (typeof html2canvas === 'undefined') { setS('Screenshot tool still loading – try again in a second'); return false; }
   return true;
 }
-async function copyImg() {
+async function copyImg(id) {
   if (!ready()) return;
   setS('Capturing…');
   try {
-    const item = new ClipboardItem({ 'image/png': render().then(toBlob) });
+    const item = new ClipboardItem({ 'image/png': render(id).then(toBlob) });
     await navigator.clipboard.write([item]);
     setS('✅ Copied – paste straight into Teams (Ctrl+V)');
   } catch (e) {
@@ -732,14 +743,14 @@ async function copyImg() {
     setS('⚠️ Your browser blocked copying – use Download instead');
   }
 }
-async function dlImg() {
+async function dlImg(id) {
   if (!ready()) return;
   setS('Capturing…');
   try {
-    const c = await render();
+    const c = await render(id);
     const a = document.createElement('a');
     a.href = c.toDataURL('image/png');
-    a.download = FILENAME;
+    a.download = (id && id !== 'cap') ? FILENAME.replace('.png', '-' + id.replace('sec-', '') + '.png') : FILENAME;
     document.body.appendChild(a); a.click(); a.remove();
     setS('💾 Downloaded');
   } catch (e) {
@@ -749,15 +760,23 @@ async function dlImg() {
 }
 """
 
-def capture_component(inner_html, extra_css, height, filename):
+def capture_component(inner_html, extra_css, height, filename, sections=None):
+    """sections: optional list of (element id, button label) that can be copied on their own.
+    Smaller images display much larger when pasted into Teams."""
+    sec_buttons = ""
+    if sections:
+        sec_buttons = ("<div class='toolbar sub'><span class='hint'>Copy one section (shows bigger in Teams):</span>"
+                       + "".join(f"<button onclick=\"copyImg('{sid}')\">{lbl}</button>" for sid, lbl in sections)
+                       + "</div>")
     doc = (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>"
         f"<style>{CAPTURE_BASE_CSS}{extra_css}</style></head><body>"
         "<div class='toolbar'>"
-        "<button onclick='copyImg()'>📋 Copy image</button>"
-        "<button onclick='dlImg()'>💾 Download PNG</button>"
+        f"<button onclick=\"copyImg('cap')\">📋 Copy {'whole brief' if sections else 'image'}</button>"
+        "<button onclick=\"dlImg('cap')\">💾 Download PNG</button>"
         "<span id='st'></span></div>"
+        f"{sec_buttons}"
         f"<div id='cap'>{inner_html}</div>"
         f"<script>const FILENAME = {json.dumps(filename)};{CAPTURE_JS}</script>"
         "</body></html>"
@@ -771,55 +790,57 @@ def capture_component(inner_html, extra_css, height, filename):
 
 BRIEF_CSS = """
 #cap { width: 1180px; }
-.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(0,255,204,0.35); padding-bottom: 12px; margin-bottom: 16px; }
-.hdr .t { font-size: 26px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; letter-spacing: 1px; }
-.hdr .s { font-size: 13px; color: #9adfd0; font-family: 'Courier New', monospace; text-align: right; line-height: 1.5; }
-.row { display: flex; gap: 14px; margin-bottom: 16px; }
-.panel { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-radius: 12px; padding: 14px 16px; }
-.lbl { font-size: 11px; color: #8a9; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-.team { font-size: 22px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; }
-.flav { font-size: 12px; color: #bbb; font-style: italic; margin-top: 4px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.chip { border-radius: 14px; padding: 3px 10px; font-size: 12px; }
+.sec { margin-bottom: 20px; }
+.sec:last-of-type { margin-bottom: 0; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(0,255,204,0.35); padding-bottom: 12px; margin-bottom: 18px; }
+.hdr .t { font-size: 32px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; letter-spacing: 1px; }
+.hdr .s { font-size: 16px; color: #9adfd0; font-family: 'Courier New', monospace; text-align: right; line-height: 1.5; }
+.row { display: flex; gap: 16px; margin-bottom: 18px; }
+.panel { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-radius: 12px; padding: 16px 18px; }
+.lbl { font-size: 14px; color: #8a9; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+.team { font-size: 28px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; }
+.flav { font-size: 15px; color: #bbb; font-style: italic; margin-top: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { border-radius: 16px; padding: 4px 12px; font-size: 15px; }
 .chip.ok { background: rgba(0,255,204,0.14); border: 1px solid rgba(0,255,204,0.6); color: #00ffcc; }
 .chip.no { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.2); color: #999; }
-.boss { display: flex; gap: 14px; align-items: center; }
-.boss img { height: 84px; width: auto; border-radius: 8px; border: 2px solid #ff4b4b; }
-.lvlups { background: rgba(255,204,0,0.08); border: 1px solid rgba(255,204,0,0.55); border-radius: 12px; padding: 10px 16px; margin-bottom: 16px; }
-.lvlups .h { color: #ffcc00; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-.lvlups .i { font-size: 14px; color: #f0f0f0; margin: 3px 0; }
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
-.card { background: rgba(20,20,20,0.9); border: 1px solid; border-radius: 12px; padding: 14px; }
+.boss { display: flex; gap: 16px; align-items: center; }
+.boss img { height: 110px; width: auto; border-radius: 8px; border: 2px solid #ff4b4b; }
+.lvlups { background: rgba(255,204,0,0.08); border: 1px solid rgba(255,204,0,0.55); border-radius: 12px; padding: 12px 18px; }
+.lvlups .h { color: #ffcc00; font-weight: bold; font-size: 18px; margin-bottom: 4px; }
+.lvlups .i { font-size: 17px; color: #f0f0f0; margin: 4px 0; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { background: rgba(20,20,20,0.9); border: 2px solid; border-radius: 12px; padding: 16px; }
 .card .top { display: flex; gap: 12px; align-items: center; }
-.av { width: 72px; height: 72px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.av img { max-width: 72px; max-height: 72px; width: auto; height: auto; }
-.card .nm { font-size: 17px; font-weight: bold; }
-.card .rk { font-size: 12px; color: #bbb; }
-.card .lv { font-size: 13px; color: #00ffcc; font-family: 'Courier New', monospace; margin-top: 2px; }
-.g6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; background: rgba(0,0,0,0.45); border-radius: 8px; padding: 8px 4px; margin: 10px 0 8px; }
-.g6 div { text-align: center; font-size: 10px; color: #999; }
-.g6 b { display: block; color: #00ffcc; font-size: 13px; font-family: 'Courier New', monospace; }
-.badges { display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px; margin-bottom: 8px; }
-.badge { font-size: 10px; color: #00ffcc; border: 1px solid rgba(0,255,204,0.6); border-radius: 4px; padding: 1px 5px; }
-.bl { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin: 6px 0 3px; font-family: 'Courier New', monospace; }
-.avgs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.avg h4 { margin: 0 0 8px; font-size: 14px; font-family: 'Courier New', monospace; }
-.ar { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12px; }
-.ar .n { width: 64px; color: #ccc; }
-.ar .bar { flex: 1; height: 14px; }
-.ar .v { width: 34px; text-align: right; font-family: 'Courier New', monospace; font-weight: bold; }
-.foot { margin-top: 14px; font-size: 11px; color: #667; text-align: center; font-family: 'Courier New', monospace; }
+.av { width: 84px; height: 84px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.av img { max-width: 84px; max-height: 84px; width: auto; height: auto; }
+.card .nm { font-size: 21px; font-weight: bold; }
+.card .rk { font-size: 15px; color: #bbb; }
+.card .lv { font-size: 16px; color: #00ffcc; font-family: 'Courier New', monospace; margin-top: 3px; font-weight: bold; }
+.g6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; background: rgba(0,0,0,0.45); border-radius: 8px; padding: 10px 2px; margin: 12px 0 10px; }
+.g6 div { text-align: center; font-size: 12px; color: #999; }
+.g6 b { display: block; color: #00ffcc; font-size: 18px; font-family: 'Courier New', monospace; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; min-height: 24px; margin-bottom: 8px; }
+.badge { font-size: 12px; color: #00ffcc; border: 1px solid rgba(0,255,204,0.6); border-radius: 4px; padding: 2px 6px; }
+.bl { display: flex; justify-content: space-between; font-size: 14px; color: #bbb; margin: 8px 0 4px; font-family: 'Courier New', monospace; }
+.bar { height: 11px; }
+.avgs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.avg h4 { margin: 0 0 10px; font-size: 18px; font-family: 'Courier New', monospace; }
+.ar { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 16px; }
+.ar .n { width: 78px; color: #ddd; }
+.ar .bar { flex: 1; height: 16px; }
+.ar .v { width: 40px; text-align: right; font-family: 'Courier New', monospace; font-weight: bold; font-size: 18px; }
+.foot { margin-top: 16px; font-size: 12px; color: #667; text-align: center; font-family: 'Courier New', monospace; }
 """
 
 NOTES_CSS = """
-.notes { margin-bottom: 16px; }
-.notes .greet { font-size: 17px; font-weight: bold; color: #f0f0f0; margin-bottom: 10px; }
-.notes .para { font-size: 13px; color: #ddd; margin: 0 0 10px; line-height: 1.5; }
-.nsecs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
-.nsec { background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-left: 4px solid #00ffcc; border-radius: 12px; padding: 12px 16px; }
-.nsec h5 { margin: 0 0 8px; font-size: 15px; color: #00ffcc; font-family: 'Courier New', monospace; }
-.nsec ul { margin: 0; padding-left: 18px; }
-.nsec li { font-size: 13px; color: #e6e6e6; line-height: 1.5; margin: 3px 0; }
+.notes .greet { font-size: 24px; font-weight: bold; color: #f0f0f0; margin-bottom: 12px; }
+.notes .para { font-size: 17px; color: #ddd; margin: 0 0 12px; line-height: 1.5; }
+.nsecs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 12px; }
+.nsec { background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-left: 5px solid #00ffcc; border-radius: 12px; padding: 14px 18px; }
+.nsec h5 { margin: 0 0 10px; font-size: 20px; color: #00ffcc; }
+.nsec ul { margin: 0; padding-left: 20px; }
+.nsec li { font-size: 17px; color: #e6e6e6; line-height: 1.5; margin: 5px 0; }
 .nsec li b, .notes .para b { color: #ffcc00; }
 """
 
@@ -846,40 +867,81 @@ def format_bullet(text):
     return inline_fmt(text)
 
 
+def is_emoji_start(text):
+    ch = text[:1]
+    if not ch or ch.isalnum():
+        return False
+    cp = ord(ch)
+    return unicodedata.category(ch) in ("So", "Sk") or cp >= 0x1F000 or 0x2600 <= cp <= 0x27BF
+
+
 def notes_to_html(raw):
-    """Turn pasted Teams-style notes into styled brief sections.
-    A line followed by bullets becomes a heading; '* ' / '- ' / '• ' lines become bullets;
-    empty bullets are skipped; anything else is a normal paragraph. {date} becomes today's date."""
+    """Turn pasted morning-brief notes into styled sections.
+    Headings: a line starting with an emoji (e.g. '🌤️ Weather'), a short line ending in ':',
+    or any line followed by '*'/'-'/'•' bullets. Lines under a heading become that section's points,
+    with or without bullet symbols (Teams drops them when you copy). Text before the first heading
+    is the greeting/intro; text after a blank line that follows a section is a closing paragraph.
+    {date} becomes today's date and **text** is bold."""
     raw = (raw or "").replace("{date}", ordinal_date(now_uk().date())).replace("\r", "")
     lines = raw.split("\n")
     is_bullet = [bool(BULLET_RE.match(l)) for l in lines]
-    blocks, greet, intro = [], None, []
-    current = None
+    nonempty = [i for i, l in enumerate(lines) if l.strip()]
+    if not nonempty:
+        return ""
+    gaps = sum(1 for a, b in zip(nonempty, nonempty[1:]) if b - a > 1)
+    # Some pastes put a blank line between every line; then blank lines carry no meaning.
+    double_spaced = len(nonempty) > 3 and gaps >= 0.7 * (len(nonempty) - 1)
+
+    def next_nonempty(i):
+        return next((j for j in range(i + 1, len(lines)) if lines[j].strip()), None)
+
+    def is_heading(i):
+        text = lines[i].strip()
+        if is_bullet[i] or len(text) > 90:
+            return False
+        if is_emoji_start(text):
+            return True
+        nxt = next_nonempty(i)
+        if nxt is None:
+            return False
+        if is_bullet[nxt]:
+            return True
+        return text.endswith(":") and len(text) <= 60
+
+    blocks, greet = [], None
+    current = None        # open section
+    ended = False         # blank line seen after the section had points
     for i, line in enumerate(lines):
         text = line.strip()
         if not text:
+            if current is not None and current["items"] and not double_spaced:
+                ended = True
+            continue
+        if is_heading(i):
+            current = {"title": inline_fmt(text.rstrip(":") if text.endswith(":") else text), "items": []}
+            blocks.append(current)
+            ended = False
             continue
         if is_bullet[i]:
             item = BULLET_RE.sub("", line, count=1).strip()
             if not item:
                 continue  # empty bullet
-            if current is None:
+            if current is None or (ended and current["title"] is None):
                 current = {"title": None, "items": []}
                 blocks.append(current)
+            ended = False
             current["items"].append(format_bullet(item))
             continue
-        nxt = next((j for j in range(i + 1, len(lines)) if lines[j].strip()), None)
-        if nxt is not None and is_bullet[nxt]:
-            current = {"title": inline_fmt(text), "items": []}
-            blocks.append(current)
+        if current is not None and not ended:
+            current["items"].append(format_bullet(text))
+            continue
+        # Plain paragraph: greeting/intro before sections, closing note after them
+        current, ended = None, False
+        if greet is None and not blocks:
+            greet = inline_fmt(text)
         else:
-            current = None
-            if greet is None and not blocks and not intro:
-                greet = inline_fmt(text)
-            else:
-                blocks.append({"para": inline_fmt(text)})
-    if greet is None and not blocks:
-        return ""
+            blocks.append({"para": inline_fmt(text)})
+
     out = ["<div class='notes'>"]
     if greet:
         out.append(f"<div class='greet'>{greet}</div>")
@@ -891,7 +953,12 @@ def notes_to_html(raw):
                 secs = []
             out.append(f"<div class='para'>{b['para']}</div>")
             continue
-        if not b["items"] and not b["title"]:
+        if not b["items"]:
+            if b["title"]:  # a "heading" with nothing under it is really just a line of text
+                if secs:
+                    out.append(f"<div class='nsecs'>{''.join(secs)}</div>")
+                    secs = []
+                out.append(f"<div class='para'>{b['title']}</div>")
             continue
         title = f"<h5>{b['title']}</h5>" if b["title"] else ""
         items = "".join(f"<li>{it}</li>" for it in b["items"])
@@ -918,7 +985,7 @@ def build_brief_html(notes_text=""):
     pace_out = round(GOAL_OUT * elapsed / total) if total else 0
 
     parts = []
-    parts.append(
+    hdr_html = (
         "<div class='hdr'><div class='t'>⚔️ MIDGAR OPS · MORNING BRIEF</div>"
         f"<div class='s'>Data up to {fmt_day(d)}<br>"
         f"Day {elapsed:g} of {total:g} working days"
@@ -927,9 +994,13 @@ def build_brief_html(notes_text=""):
     )
     notes_html = notes_to_html(notes_text)
     if notes_html:
-        parts.append(notes_html)
+        parts.append(f"<div class='sec' id='sec-news'>{hdr_html}{notes_html}</div>")
+        team_hdr = ""
+    else:
+        team_hdr = hdr_html
     boss_col = "#ff4b4b" if boss["hp"] > 0 else "#00ffcc"
-    parts.append(
+    team_parts = [team_hdr]
+    team_parts.append(
         "<div class='row'>"
         "<div class='panel'><div class='lbl'>Party designation</div>"
         f"<div class='team'>{html.escape(ov['title'])}</div><div class='flav'>{html.escape(ov['flavour'])}</div>"
@@ -938,7 +1009,7 @@ def build_brief_html(notes_text=""):
         "<div class='panel'><div class='boss'>"
         f"<img src='{SEPHIROTH_IMG}' crossorigin='anonymous'>"
         "<div style='flex:1;'><div class='lbl'>Month-end boss</div>"
-        f"<div style='color:{boss_col};font-weight:bold;font-size:15px;'>{html.escape(boss['phase'])}</div>"
+        f"<div style='color:{boss_col};font-weight:bold;font-size:19px;'>{html.escape(boss['phase'])}</div>"
         f"<div class='bl'><span>HP</span><span>{boss['hp']:,} / {BOSS_MAX_HP:,}</span></div>"
         f"<div class='bar' style='height:12px;'><div style='width:{boss['pct']*100:.1f}%;background:{boss_col};'></div></div>"
         f"<div class='flav' style='margin-top:6px;'>{html.escape(boss_projection(ov['total_exp'], d))}</div>"
@@ -952,7 +1023,8 @@ def build_brief_html(notes_text=""):
             if u["new_rank"]:
                 line += f" – new title: <b>{html.escape(u['rank'])}</b>"
             items += f"<div class='i'>{line}</div>"
-        parts.append(f"<div class='lvlups'><div class='h'>🎉 LEVEL UP!</div>{items}</div>")
+        team_parts.append(f"<div class='lvlups'><div class='h'>🎉 LEVEL UP!</div>{items}</div>")
+    parts.append(f"<div class='sec' id='sec-team'>{''.join(team_parts)}</div>")
 
     cards = ""
     for name in STAFF_NAMES:
@@ -976,7 +1048,7 @@ def build_brief_html(notes_text=""):
             f"<div class='bar'><div style='width:{r['EXP_Pct']*100:.1f}%;background:#0099ff;'></div></div>"
             "</div>"
         )
-    parts.append(f"<div class='cards'>{cards}</div>")
+    parts.append(f"<div class='sec' id='sec-party'><div class='lbl'>⚔️ The party · data up to {fmt_day(d)}</div><div class='cards'>{cards}</div></div>")
 
     avg_specs = [("Avg Inbound / day", "avg_in", "#00ffcc"), ("Avg Outbound / day", "avg_out", "#0099ff"),
                  ("Avg Tickets Opened / day", "avg_open", "#ff4b4b"), ("Avg Tickets Closed / day", "avg_close", "#ffcc00")]
@@ -992,7 +1064,7 @@ def build_brief_html(notes_text=""):
             for n, v in vals.items()
         )
         panels += f"<div class='panel avg'><h4 style='color:{colr};'>{label} (weighted)</h4>{rows}</div>"
-    parts.append(f"<div class='lbl'>📅 Weighted daily averages</div><div class='avgs'>{panels}</div>")
+    parts.append(f"<div class='sec' id='sec-avgs'><div class='lbl'>📅 Weighted daily averages · data up to {fmt_day(d)}</div><div class='avgs'>{panels}</div></div>")
     parts.append("<div class='foot'>Shinra Ops Dashboard · Avalanche HQ</div>")
 
     card_rows = math.ceil(len(STAFF_NAMES) / 3)
@@ -1142,8 +1214,11 @@ with tab_brief:
                    "\"Label: detail\" bullets get a bold label · **text** is bold · {date} fills in today's date. "
                    "Notes are never saved – they clear when the page is refreshed. Press Ctrl+Enter to update the image.")
     brief_html, brief_height = build_brief_html(st.session_state.get("brief_notes", ""))
+    brief_sections = ([("📰 News", "sec-news")] if "id='sec-news'" in brief_html else []) + [
+        ("🎯 Missions & Boss", "sec-team"), ("⚔️ Party", "sec-party"), ("📅 Averages", "sec-avgs")]
     capture_component(brief_html, BRIEF_CSS + NOTES_CSS, brief_height,
-                      f"midgar-brief-{get_data_date().isoformat()}.png")
+                      f"midgar-brief-{get_data_date().isoformat()}.png",
+                      sections=[(sid, lbl) for lbl, sid in brief_sections])
 
 
 # =============================================================================
