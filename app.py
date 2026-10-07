@@ -982,7 +982,7 @@ def parse_ytd_paste(text, staff_names, today):
             awol_s = val("awol", "sec")
             entry[n] = [int(round(total - out)), int(round(out)), int(round(val("open") or 0)),
                         int(round(val("close") or 0)), val("ans"),
-                        round((awol_s or 0) / 60, 1)]
+                        round((awol_s or 0) / 60, 3)]
         data_months[f"{m:02d}"] = entry
 
     # Top block: YTD totals + days worked
@@ -1310,7 +1310,7 @@ async function dlImg(id) {
 }
 """
 
-def capture_component(inner_html, extra_css, height, filename, sections=None):
+def capture_component(inner_html, extra_css, height, filename, sections=None, whole_label="whole brief"):
     """sections: optional list of (element id, button label) that can be copied on their own.
     Smaller images display much larger when pasted into Teams."""
     sec_buttons = ""
@@ -1328,7 +1328,7 @@ def capture_component(inner_html, extra_css, height, filename, sections=None):
         "<script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>"
         f"<style>{CAPTURE_BASE_CSS}{extra_css}</style></head><body>"
         "<div class='toolbar'>"
-        f"<button onclick=\"copyImg('cap')\">📋 Copy {'whole brief' if sections else 'image'}</button>"
+        f"<button onclick=\"copyImg('cap')\">📋 Copy {whole_label if sections else 'image'}</button>"
         "<button onclick=\"dlImg('cap')\">💾 Download PNG</button>"
         "<span id='st'></span></div>"
         f"{sec_buttons}"
@@ -2251,6 +2251,174 @@ def fmt_mins(m):
     return f"{secs // 3600}:{secs % 3600 // 60:02d}:{secs % 60:02d}"
 
 
+def _mix(c1, c2, t):
+    t = min(1.0, max(0.0, t))
+    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
+
+
+def heat_colour(t):
+    """0 -> red, 0.5 -> amber, 1 -> teal"""
+    return _mix("#ff4b4b", "#ffcc00", t * 2) if t < 0.5 else _mix("#ffcc00", "#00ffcc", (t - 0.5) * 2)
+
+
+YTD_CSS = """
+.ycards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.ycard { background: rgba(0,255,204,0.06); border: 1px solid rgba(0,255,204,0.35); border-radius: 12px; text-align: center; padding: 14px 8px; }
+.ycard b { display: block; font-size: 30px; color: #00ffcc; font-family: 'Courier New', monospace; }
+.ycard span { font-size: 13px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+.vbars { display: flex; align-items: flex-end; gap: 12px; height: 260px; padding: 10px 6px 0; border-bottom: 1px solid rgba(255,255,255,0.15); }
+.vcol { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.vcol .t { font-size: 14px; color: #ddd; font-family: 'Courier New', monospace; margin-bottom: 4px; font-weight: bold; }
+.vstack { width: 70%; display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; }
+.vlabels { display: flex; gap: 12px; padding: 6px 6px 0; }
+.vlabels div { flex: 1; text-align: center; font-size: 15px; color: #00ffcc; font-family: 'Courier New', monospace; }
+.legend { display: flex; gap: 16px; margin-top: 10px; font-size: 15px; color: #ccc; }
+.legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+table.heat { width: 100%; border-collapse: separate; border-spacing: 4px; }
+table.heat th { font-size: 14px; color: #00ffcc; font-family: 'Courier New', monospace; font-weight: normal; padding: 2px; }
+table.heat td { text-align: center; font-family: 'Courier New', monospace; font-weight: bold; font-size: 15px; padding: 9px 2px; border-radius: 5px; color: #0a0e13; }
+table.heat td.nm { color: #ddd; text-align: left; font-family: 'Segoe UI', Arial, sans-serif; font-weight: bold; background: transparent !important; padding-left: 4px; }
+table.heat td.empty { background: rgba(255,255,255,0.04); color: #555; }
+table.rec { width: 100%; border-collapse: collapse; font-size: 16px; }
+table.rec th { color: #00ffcc; text-align: left; padding: 8px; border-bottom: 1px solid rgba(0,255,204,0.35); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+table.rec td { padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,0.07); color: #eee; }
+table.rec td.m { font-family: 'Courier New', monospace; color: #00ffcc; }
+.star { margin-top: 12px; font-size: 18px; color: #ffcc00; }
+"""
+
+
+def build_ytd_html(ytd):
+    months = sorted(ytd["months"])
+    mlab = [MONTH_NAMES[int(m) - 1][:3] for m in months]
+    cur_month = f"{get_data_date().month:02d}"
+    people = [n for n in STAFF_NAMES if any(n in ytd["months"][m] for m in months)]
+    F = {k: i for i, k in enumerate(YTD_FIELDS)}
+    short = {n: html.escape(n.split(" ")[0]) for n in people}
+
+    def val(m, n, key):
+        row = ytd["months"][m].get(n)
+        return row[F[key]] if row and row[F[key]] is not None else None
+
+    def tot(n, key):
+        return sum(val(m, n, key) or 0 for m in months)
+
+    span = f"{mlab[0]} – {mlab[-1]}" + (" (so far)" if months[-1] == cur_month else "")
+    parts = []
+
+    # Section 1: header + headline cards
+    team_in = sum(tot(n, "in") for n in people)
+    team_out = sum(tot(n, "out") for n in people)
+    ans_vals = [val(m, n, "ans") for m in months for n in people if val(m, n, "ans") is not None]
+    cards = [(f"{team_in + team_out:,}", "📞 Calls handled"), (f"{team_in:,}", "📥 Inbound"), (f"{team_out:,}", "📤 Outbound"),
+             (f"{sum(tot(n, 'open') for n in people):,}", "📂 Tickets opened"),
+             (f"{sum(tot(n, 'close') for n in people):,}", "✅ Tickets closed"),
+             (f"{(sum(ans_vals) / len(ans_vals) if ans_vals else 0):.1f}%", "🛡️ Avg answer rate"),
+             (fmt_mins(sum(tot(n, 'awol') for n in people)), "🐌 Team AWOL")]
+    if ytd.get("summary", {}).get("Jobs supported"):
+        cards.append((f"{int(ytd['summary']['Jobs supported']):,}", "🔧 Jobs supported"))
+    parts.append(
+        "<div class='sec' id='sec-yhead'>"
+        "<div class='hdr'><div class='t'>📆 MIDGAR OPS · YEAR TO DATE</div>"
+        f"<div class='s'>{ytd.get('year', '')} · {span}<br>updated {html.escape(str(ytd.get('updated', '—')))}</div></div>"
+        "<div class='ycards'>" + "".join(f"<div class='ycard'><b>{b}</b><span>{l}</span></div>" for b, l in cards) + "</div></div>"
+    )
+
+    # Section 2: team month by month (stacked bars)
+    segs = [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"), ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]
+    totals = {m: {k: sum(val(m, n, k) or 0 for n in people) for k, _, _ in segs} for m in months}
+    mx = max((sum(t.values()) for t in totals.values()), default=1) or 1
+    cols = ""
+    for m in months:
+        t_all = sum(totals[m].values())
+        stack = "".join(f"<div style='height:{totals[m][k] / mx * 210:.1f}px;background:{c};'></div>" for k, _, c in segs)
+        cols += f"<div class='vcol'><div class='t'>{t_all:,}</div><div class='vstack'>{stack}</div></div>"
+    labels = "".join(f"<div>{l}{'*' if m == cur_month else ''}</div>" for m, l in zip(months, mlab))
+    legend = "".join(f"<span><i style='background:{c};'></i>{l}</span>" for _, l, c in segs)
+    parts.append(
+        "<div class='sec' id='sec-ymonth'><div class='panel'>"
+        f"<div class='lbl'>📊 Team output month by month · {ytd.get('year', '')}</div>"
+        f"<div class='vbars'>{cols}</div><div class='vlabels'>{labels}</div>"
+        f"<div class='legend'>{legend}" + ("<span style='color:#888;'>* month so far</span>" if cur_month in months else "") +
+        "</div></div></div>"
+    )
+
+    # Section 3: answer % and AWOL grids
+    ans_all = [v for v in ans_vals]
+    lo = min(ans_all + [95]) if ans_all else 95
+    head = "<tr><th></th>" + "".join(f"<th>{l}</th>" for l in mlab) + "</tr>"
+    rows_a, rows_w = "", ""
+    awol_max = max((val(m, n, "awol") or 0 for m in months for n in people), default=0) or 1
+    for n in people:
+        rows_a += f"<tr><td class='nm'>{short[n]}</td>"
+        rows_w += f"<tr><td class='nm'>{short[n]}</td>"
+        for m in months:
+            a = val(m, n, "ans")
+            if a is None:
+                rows_a += "<td class='empty'>–</td>"
+            else:
+                rows_a += f"<td style='background:{heat_colour((a - lo) / (100 - lo) if 100 > lo else 1)};'>{a:g}%</td>"
+            w = val(m, n, "awol") or 0
+            txt = fmt_mins(w)[2:] if w < 60 else fmt_mins(w)
+            rows_w += f"<td style='background:{heat_colour(1 - w / awol_max) if w > 0 else '#1d3b36'};{'' if w > 0 else 'color:#5f8f86;'}'>{txt}</td>"
+        rows_a += "</tr>"
+        rows_w += "</tr>"
+    parts.append(
+        "<div class='sec' id='sec-ygrid'><div class='row' style='margin-bottom:0;'>"
+        f"<div class='panel'><div class='lbl'>🛡️ Answer rate by month</div><table class='heat'>{head}{rows_a}</table></div>"
+        f"<div class='panel'><div class='lbl'>🐌 AWOL by month (m:ss)</div><table class='heat'>{head}{rows_w}</table></div>"
+        "</div></div>"
+    )
+
+    # Section 4: leaderboards – totals and weighted per day
+    days = ytd.get("days", {})
+    panels = ""
+    for key, label, colr in segs:
+        tvals = {n: tot(n, key) for n in people}
+        m_t = max(tvals.values()) or 1
+        rows = "".join(
+            f"<div class='ar'><span class='n'>{short[n]}</span>"
+            f"<div class='bar'><div style='width:{v / m_t * 100:.1f}%;background:{colr};'></div></div>"
+            f"<span class='v' style='color:{colr};width:64px;'>{v:,}</span></div>" for n, v in tvals.items())
+        per_day = ""
+        if days:
+            pd_vals = {}
+            for n in people:
+                wd = (days.get(n) or 0) * SHIFT_WEIGHTS.get(n, 1.0)
+                pd_vals[n] = round(tvals[n] / wd) if wd > 0 else 0
+            per_day = "<div class='flav' style='margin-top:6px;font-style:normal;'>Per day (weighted): " + \
+                      " · ".join(f"{short[n]} <b style='color:{colr};'>{v}</b>" for n, v in pd_vals.items()) + "</div>"
+        panels += f"<div class='panel avg'><h4 style='color:{colr};'>{label} · YTD</h4>{rows}{per_day}</div>"
+    parts.append(f"<div class='sec' id='sec-ylead'><div class='lbl'>🏆 Year to date by person</div><div class='avgs'>{panels}</div></div>")
+
+    # Section 5: records
+    complete = [m for m in months if m != cur_month] or months
+    rec = ""
+    for n in people:
+        outp = {m: sum(val(m, n, k) or 0 for k in ("in", "out", "open", "close")) for m in complete}
+        best_m = max(outp, key=outp.get)
+        ans_m = {m: val(m, n, "ans") for m in complete if val(m, n, "ans") is not None}
+        best_a = max(ans_m, key=ans_m.get) if ans_m else None
+        rec += (f"<tr><td><b>{html.escape(n)}</b></td>"
+                f"<td class='m'>{MONTH_NAMES[int(best_m) - 1][:3]} · {outp[best_m]:,}</td>"
+                f"<td class='m'>{(MONTH_NAMES[int(best_a) - 1][:3] + ' · ' + format(ans_m[best_a], 'g') + '%') if best_a else '–'}</td>"
+                f"<td class='m'>{sum(tot(n, k) for k in ('in', 'out', 'open', 'close')):,}</td>"
+                f"<td class='m'>{fmt_mins(tot(n, 'awol'))}</td></tr>")
+    team_by_month = {m: sum(sum(val(m, n, k) or 0 for k in ("in", "out", "open", "close")) for n in people) for m in complete}
+    tb = max(team_by_month, key=team_by_month.get)
+    parts.append(
+        "<div class='sec' id='sec-yrec'><div class='panel'><div class='lbl'>🌟 Records this year (completed months)</div>"
+        "<table class='rec'><tr><th>Operative</th><th>Busiest month</th><th>Best answer rate</th><th>YTD calls + tickets</th><th>YTD AWOL</th></tr>"
+        f"{rec}</table>"
+        f"<div class='star'>🏆 Team's busiest month: <b>{MONTH_NAMES[int(tb) - 1]}</b> with <b>{team_by_month[tb]:,}</b> calls + tickets</div>"
+        "</div></div>"
+    )
+    parts.append("<div class='foot'>Shinra Ops Dashboard · Avalanche HQ</div>")
+    height = 1900 + 40 * len(people)
+    return "".join(parts), height
+
+
 with tab_ytd:
     st.title("📆 Year to Date")
     ytd = md.get("ytd")
@@ -2277,6 +2445,17 @@ with tab_ytd:
 
         stamp_txt = "{} · {} – {} · updated {}".format(ytd.get("year", ""), mlabels[0], mlabels[-1], ytd.get("updated", "—"))
         st.markdown(f"<div class='data-stamp'>{html.escape(stamp_txt)}</div>", unsafe_allow_html=True)
+
+        # ── Teams image (same copy buttons as the Morning Brief) ───────────────
+        if st.toggle("📸 Show the Teams image view", key="ytd_image_view",
+                     help="A screenshot-ready version of this page with Copy buttons – paste straight into Teams."):
+            ytd_html, ytd_height = build_ytd_html(ytd)
+            capture_component(ytd_html, BRIEF_CSS + YTD_CSS, ytd_height,
+                              f"midgar-ytd-{now_uk().date().isoformat()}.png",
+                              sections=[("sec-yhead", "📆 Headlines"), ("sec-ymonth", "📊 Month by month"),
+                                        ("sec-ygrid", "🛡️ Answer % & AWOL"), ("sec-ylead", "🏆 By person"),
+                                        ("sec-yrec", "🌟 Records")], whole_label="everything")
+            st.divider()
 
         # ── Headline cards ─────────────────────────────────────────────────────
         team_in = sum(tot(n, "in") for n in people)
