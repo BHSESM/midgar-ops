@@ -608,7 +608,9 @@ def team_overview():
     missions = [
         ("📞 Outbound", total_out >= GOAL_OUT, f"{total_out}/{GOAL_OUT}"),
         ("🛡️ Answer Rate", avg_ans >= GOAL_ANS, f"{avg_ans:.1f}%"),
-        ("🐌 AWOL Pool", total_awol <= MAX_AWOL, f"{total_awol}/{MAX_AWOL:g}m"),
+        ("🐌 AWOL Pool", total_awol <= MAX_AWOL,
+         f"{MAX_AWOL - total_awol:g}/{MAX_AWOL:g}m left" if total_awol <= MAX_AWOL
+         else f"{total_awol - MAX_AWOL:g}m over"),
         ("📋 SLA", sla >= GOAL_SLA, f"{sla:.1f}%"),
     ]
     missions_hit = sum(1 for m in missions if m[1])
@@ -944,7 +946,7 @@ def build_snapshot_html():
         "<div class='hdr'><div class='t'>⚡ DAILY TACTICAL SNAPSHOT</div>"
         f"<div class='s'>{html.escape(stamp)}</div></div>",
         "<div class='tot'>"
-        f"<div><b>{tot_ans}</b>Calls answered</div><div><b>{tot_out}</b>Outbound</div>"
+        f"<div><b>{tot_ans}</b>Inbound</div><div><b>{tot_out}</b>Outbound</div>"
         f"<div><b>{tot_open}</b>SD opened</div><div><b>{tot_close}</b>SD closed</div></div>",
     ]
     cards = ""
@@ -953,7 +955,7 @@ def build_snapshot_html():
         cards += (
             "<div class='sc'>"
             f"<div class='top'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'><div class='nm'>{html.escape(name)}</div></div>"
-            "<table><tr><th>Calls Ans</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. GIL</th></tr>"
+            "<table><tr><th>Inbound</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. GIL</th></tr>"
             f"<tr><td>{s['answered']}</td><td style='color:#00ffcc;'>{fmt_pct(s['pct'])}</td><td>{s['outbound']}</td>"
             f"<td style='color:#ff4b4b;'>{s['open']}</td><td style='color:#00ffcc;'>{s['close']}</td>"
             f"<td style='color:#ffcc00;'>💰 {snapshot_gil(name, s)}</td></tr></table></div>"
@@ -1241,7 +1243,7 @@ with tab_snapshot:
         snap_df = pd.DataFrame(
             [{
                 "Operative": n,
-                "Calls Ans": int(snaps[n]["answered"]),
+                "Inbound": int(snaps[n]["answered"]),
                 "Ans %": float(str(snaps[n]["pct"]).rstrip("%") or 100),
                 "Outbound": int(snaps[n]["outbound"]),
                 "SD Opened": int(snaps[n]["open"]),
@@ -1254,7 +1256,7 @@ with tab_snapshot:
             width="stretch",
             num_rows="fixed",
             column_config={
-                "Calls Ans": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "Inbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
                 "Ans %": st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.1, format="%.1f%%"),
                 "Outbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
                 "SD Opened": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
@@ -1264,7 +1266,7 @@ with tab_snapshot:
         if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
             for n, row in edited_snap.iterrows():
                 st.session_state.daily_snapshot_data[n].update({
-                    "answered": int(row["Calls Ans"] or 0),
+                    "answered": int(row["Inbound"] or 0),
                     "pct": float(row["Ans %"]) if pd.notna(row["Ans %"]) else 100.0,
                     "outbound": int(row["Outbound"] or 0),
                     "open": int(row["SD Opened"] or 0),
@@ -1280,7 +1282,7 @@ with tab_snapshot:
     for name in STAFF_NAMES:
         snap_item = st.session_state.daily_snapshot_data[name]
         daily_rows_matrix.append({
-            "Operative": name, "Calls Answered": snap_item["answered"], "Answer Rate": fmt_pct(snap_item["pct"]),
+            "Operative": name, "Inbound": snap_item["answered"], "Answer Rate": fmt_pct(snap_item["pct"]),
             "Outbound Calls": snap_item["outbound"], "SD Opened": snap_item["open"], "SD Closed": snap_item["close"],
             "Projected Daily GIL": f"💰 {snapshot_gil(name, snap_item)}"
         })
@@ -2020,20 +2022,36 @@ with tab_admin:
         # --- MODULE 3: HEATMAP DATA ---
         st.subheader("🔥 Module 4: Update Mako Traffic Flows & Global Outcomes")
         st.markdown("##### **Part A: Half-Hour Volume Parameters Input Grid**")
+        st.caption("Tab moves left to right through the times in order.")
+        # Built row by row (not column by column) so the Tab key runs 08:00 → 08:30 → 09:00 …
         v_inputs = {}
-        v_cols = st.columns(4)
-        for idx, slot in enumerate(TIME_SLOTS):
-            with v_cols[idx % 4]:
-                v_inputs[slot] = st.number_input(f"Vol: {slot}", value=int(md["volume_stats"].get(slot, 0)), min_value=0, step=1)
+        for row_start in range(0, len(TIME_SLOTS), 4):
+            row_cols = st.columns(4)
+            for col, slot in zip(row_cols, TIME_SLOTS[row_start:row_start + 4]):
+                with col:
+                    v_inputs[slot] = st.number_input(f"Vol: {slot[:5]}", value=int(md["volume_stats"].get(slot, 0)),
+                                                     min_value=0, step=1, key=f"vol_{slot}_{st.session_state.editor_ver}")
         st.markdown("##### **Part B: Standalone Percentage Metrics Input Grid**")
+        st.caption("One row per outcome type – Tab runs D2S → S2S → INV → NC.")
+
+        def pct_to_float(v):
+            try:
+                return float(str(v).strip().rstrip("%") or 0)
+            except ValueError:
+                return 0.0
+
         o_inputs = {}
-        o_cols = st.columns(4)
-        for idx, key in enumerate(OUTCOME_KEYS):
-            with o_cols[idx % 4]:
-                o_inputs[key] = st.text_input(f"{key}", value=str(md["outcome_stats"].get(key, "0.0%")))
+        for row_start in range(0, len(OUTCOME_KEYS), 4):
+            row_cols = st.columns(4)
+            for col, key in zip(row_cols, OUTCOME_KEYS[row_start:row_start + 4]):
+                with col:
+                    o_inputs[key] = st.number_input(f"{key} %", value=pct_to_float(md["outcome_stats"].get(key, "0.0%")),
+                                                    min_value=0.0, max_value=100.0, step=0.1, format="%.1f",
+                                                    key=f"outcome_{key}_{st.session_state.editor_ver}")
         if st.button("🚀 Mass-Commit Heatmap Metrics to Lifestream"):
-            for slot in TIME_SLOTS: md["volume_stats"][slot] = v_inputs[slot]
-            for key in OUTCOME_KEYS: md["outcome_stats"][key] = o_inputs[key]
+            for slot in TIME_SLOTS: md["volume_stats"][slot] = int(v_inputs[slot])
+            # Stored as "12.3%" text, same as before, so older saves and the Heatmap tab keep working
+            for key in OUTCOME_KEYS: md["outcome_stats"][key] = f"{o_inputs[key]:.1f}%"
             touch_last_updated()
             st.success("All traffic flows saved!")
             st.rerun()
