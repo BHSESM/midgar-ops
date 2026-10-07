@@ -784,14 +784,15 @@ BRIEF_CSS = """
 .chip.ok { background: rgba(0,255,204,0.14); border: 1px solid rgba(0,255,204,0.6); color: #00ffcc; }
 .chip.no { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.2); color: #999; }
 .boss { display: flex; gap: 14px; align-items: center; }
-.boss img { height: 84px; border-radius: 8px; border: 2px solid #ff4b4b; }
+.boss img { height: 84px; width: auto; border-radius: 8px; border: 2px solid #ff4b4b; }
 .lvlups { background: rgba(255,204,0,0.08); border: 1px solid rgba(255,204,0,0.55); border-radius: 12px; padding: 10px 16px; margin-bottom: 16px; }
 .lvlups .h { color: #ffcc00; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
 .lvlups .i { font-size: 14px; color: #f0f0f0; margin: 3px 0; }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
 .card { background: rgba(20,20,20,0.9); border: 1px solid; border-radius: 12px; padding: 14px; }
 .card .top { display: flex; gap: 12px; align-items: center; }
-.card img { width: 72px; height: 72px; object-fit: contain; }
+.av { width: 72px; height: 72px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.av img { max-width: 72px; max-height: 72px; width: auto; height: auto; }
 .card .nm { font-size: 17px; font-weight: bold; }
 .card .rk { font-size: 12px; color: #bbb; }
 .card .lv { font-size: 13px; color: #00ffcc; font-family: 'Courier New', monospace; margin-top: 2px; }
@@ -810,7 +811,98 @@ BRIEF_CSS = """
 .foot { margin-top: 14px; font-size: 11px; color: #667; text-align: center; font-family: 'Courier New', monospace; }
 """
 
-def build_brief_html():
+NOTES_CSS = """
+.notes { margin-bottom: 16px; }
+.notes .greet { font-size: 17px; font-weight: bold; color: #f0f0f0; margin-bottom: 10px; }
+.notes .para { font-size: 13px; color: #ddd; margin: 0 0 10px; line-height: 1.5; }
+.nsecs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.nsec { background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-left: 4px solid #00ffcc; border-radius: 12px; padding: 12px 16px; }
+.nsec h5 { margin: 0 0 8px; font-size: 15px; color: #00ffcc; font-family: 'Courier New', monospace; }
+.nsec ul { margin: 0; padding-left: 18px; }
+.nsec li { font-size: 13px; color: #e6e6e6; line-height: 1.5; margin: 3px 0; }
+.nsec li b, .notes .para b { color: #ffcc00; }
+"""
+
+BULLET_RE = re.compile(r"^\s*(?:[*•\-–·▪◦]|\d+[.)])(?:\s+|$)")
+
+
+def ordinal_date(d):
+    n = d.day
+    suffix = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{d.strftime('%A')} {n}{suffix} {d.strftime('%B %Y')}"
+
+
+def inline_fmt(text):
+    """Escape the text, then turn **bold** into bold."""
+    t = html.escape(text)
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
+
+
+def format_bullet(text):
+    # "Label: detail" -> bold label, as long as the label is short
+    m = re.match(r"^(.{1,45}?):\s+(.+)$", text)
+    if m and "**" not in m.group(1):
+        return f"<b>{html.escape(m.group(1))}:</b> {inline_fmt(m.group(2))}"
+    return inline_fmt(text)
+
+
+def notes_to_html(raw):
+    """Turn pasted Teams-style notes into styled brief sections.
+    A line followed by bullets becomes a heading; '* ' / '- ' / '• ' lines become bullets;
+    empty bullets are skipped; anything else is a normal paragraph. {date} becomes today's date."""
+    raw = (raw or "").replace("{date}", ordinal_date(now_uk().date())).replace("\r", "")
+    lines = raw.split("\n")
+    is_bullet = [bool(BULLET_RE.match(l)) for l in lines]
+    blocks, greet, intro = [], None, []
+    current = None
+    for i, line in enumerate(lines):
+        text = line.strip()
+        if not text:
+            continue
+        if is_bullet[i]:
+            item = BULLET_RE.sub("", line, count=1).strip()
+            if not item:
+                continue  # empty bullet
+            if current is None:
+                current = {"title": None, "items": []}
+                blocks.append(current)
+            current["items"].append(format_bullet(item))
+            continue
+        nxt = next((j for j in range(i + 1, len(lines)) if lines[j].strip()), None)
+        if nxt is not None and is_bullet[nxt]:
+            current = {"title": inline_fmt(text), "items": []}
+            blocks.append(current)
+        else:
+            current = None
+            if greet is None and not blocks and not intro:
+                greet = inline_fmt(text)
+            else:
+                blocks.append({"para": inline_fmt(text)})
+    if greet is None and not blocks:
+        return ""
+    out = ["<div class='notes'>"]
+    if greet:
+        out.append(f"<div class='greet'>{greet}</div>")
+    secs = []
+    for b in blocks:
+        if "para" in b:
+            if secs:
+                out.append(f"<div class='nsecs'>{''.join(secs)}</div>")
+                secs = []
+            out.append(f"<div class='para'>{b['para']}</div>")
+            continue
+        if not b["items"] and not b["title"]:
+            continue
+        title = f"<h5>{b['title']}</h5>" if b["title"] else ""
+        items = "".join(f"<li>{it}</li>" for it in b["items"])
+        secs.append(f"<div class='nsec'>{title}<ul>{items}</ul></div>")
+    if secs:
+        out.append(f"<div class='nsecs'>{''.join(secs)}</div>")
+    out.append("</div>")
+    return "".join(out)
+
+
+def build_brief_html(notes_text=""):
     md = st.session_state.master_data
     ov = team_overview()
     boss = boss_state(ov["total_exp"])
@@ -833,6 +925,9 @@ def build_brief_html():
         + (f" · updated {html.escape(meta['last_updated'])}" if meta.get('last_updated') else "")
         + "</div></div>"
     )
+    notes_html = notes_to_html(notes_text)
+    if notes_html:
+        parts.append(notes_html)
     boss_col = "#ff4b4b" if boss["hp"] > 0 else "#00ffcc"
     parts.append(
         "<div class='row'>"
@@ -867,7 +962,7 @@ def build_brief_html():
         badges = "".join(f"<span class='badge'>{html.escape(b)}</span>" for b in OPERATIVE_HONORS[name])
         cards += (
             f"<div class='card' style='border-color:{col};'>"
-            f"<div class='top'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'>"
+            f"<div class='top'><div class='av'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'></div>"
             f"<div><div class='nm'>{html.escape(name)}</div><div class='rk'>{html.escape(r['Rank'])}</div>"
             f"<div class='lv'>LVL {r['Level']} · 💰 {r['GIL']:,} GIL</div></div></div>"
             "<div class='g6'>"
@@ -901,7 +996,7 @@ def build_brief_html():
     parts.append("<div class='foot'>Shinra Ops Dashboard · Avalanche HQ</div>")
 
     card_rows = math.ceil(len(STAFF_NAMES) / 3)
-    height = 330 + (40 + 28 * len(ups) if ups else 0) + card_rows * 290 + 2 * (70 + 26 * len(STAFF_NAMES)) + 140
+    height = 330 + (40 + 28 * len(ups) if ups else 0) + (60 + 22 * notes_text.count(chr(10)) if notes_html else 0) + card_rows * 290 + 2 * (70 + 26 * len(STAFF_NAMES)) + 140
     return "".join(parts), height
 
 
@@ -916,7 +1011,8 @@ SNAP_CSS = """
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .sc { background: rgba(20,20,20,0.9); border: 1px solid rgba(0,255,204,0.5); border-radius: 12px; padding: 14px; }
 .sc .top { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
-.sc img { width: 60px; height: 60px; object-fit: contain; border: 2px solid #00ffcc; border-radius: 8px; background: rgba(0,0,0,0.5); }
+.sav { width: 64px; height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid #00ffcc; border-radius: 8px; background: rgba(0,0,0,0.5); }
+.sav img { max-width: 56px; max-height: 56px; width: auto; height: auto; }
 .sc .nm { font-size: 19px; font-weight: bold; }
 table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; }
 th { background: rgba(0,255,204,0.15); color: #00ffcc; padding: 6px; border: 1px solid rgba(255,255,255,0.1); }
@@ -954,7 +1050,7 @@ def build_snapshot_html():
         s = snaps[name]
         cards += (
             "<div class='sc'>"
-            f"<div class='top'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'><div class='nm'>{html.escape(name)}</div></div>"
+            f"<div class='top'><div class='sav'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'></div><div class='nm'>{html.escape(name)}</div></div>"
             "<table><tr><th>Inbound</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. GIL</th></tr>"
             f"<tr><td>{s['answered']}</td><td style='color:#00ffcc;'>{fmt_pct(s['pct'])}</td><td>{s['outbound']}</td>"
             f"<td style='color:#ff4b4b;'>{s['open']}</td><td style='color:#00ffcc;'>{s['close']}</td>"
@@ -1036,8 +1132,17 @@ with tab_party:
 with tab_brief:
     st.title("📣 Morning Brief")
     st.caption("Everything for the morning post in one frame. Press **Copy image**, then paste straight into Teams.")
-    brief_html, brief_height = build_brief_html()
-    capture_component(brief_html, BRIEF_CSS, brief_height,
+    with st.expander("📝 Today's news & notes (optional)", expanded=not st.session_state.get("brief_notes")):
+        st.text_area(
+            "Paste your notes – they appear at the top of the brief image",
+            key="brief_notes", height=260,
+            placeholder="Good Morning team - Here is your brief for {date}\n\n🌤️ Weather\n* Temperature: ...\n\n👥 Team Status\n* Sophie: On Annual Leave.",
+        )
+        st.caption("A line followed by bullets becomes a heading · bullets start with * - or • · "
+                   "\"Label: detail\" bullets get a bold label · **text** is bold · {date} fills in today's date. "
+                   "Notes are never saved – they clear when the page is refreshed. Press Ctrl+Enter to update the image.")
+    brief_html, brief_height = build_brief_html(st.session_state.get("brief_notes", ""))
+    capture_component(brief_html, BRIEF_CSS + NOTES_CSS, brief_height,
                       f"midgar-brief-{get_data_date().isoformat()}.png")
 
 
