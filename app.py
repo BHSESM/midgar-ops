@@ -1,9 +1,14 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import math
 import json
 import re
-from datetime import datetime
+import html
+import calendar
+import tomllib
+from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -14,12 +19,23 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+UK_TZ = ZoneInfo("Europe/London")
+
+
+def now_uk():
+    """Streamlit Cloud runs on UTC, so always stamp times in UK time."""
+    return datetime.now(UK_TZ)
+
+
 # --- 2. THE ULTIMATE WEAPON CSS (FULL PRODUCTION VERSION) ---
+# Note on the keyed containers (bounty cards / battle HUD): Streamlit gives a container created with
+# st.container(key="x") a CSS class of "st-key-x". The attribute selector is repeated four times purely
+# to out-rank the glass-morphism rule below so these boxes keep their own look.
 st.markdown("""
     <style>
     /* Backdrop & Layout */
     .stApp {
-        background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), 
+        background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)),
                     url('https://github.com/BHSESM/midgar-ops/blob/main/BG.jpg?raw=true');
         background-size: cover;
         background-attachment: fixed;
@@ -64,7 +80,7 @@ st.markdown("""
     /* Mini-Stat Grid (Inside Party Cards) */
     .mini-stat-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 6px;
         margin: 15px 0;
         padding: 10px;
@@ -85,15 +101,17 @@ st.markdown("""
         font-size: 0.8rem;
     }
 
-    /* Bounty Board Styling */
-    .bounty-card {
-        background: rgba(0, 255, 204, 0.05);
-        border: 1px dashed rgba(0, 255, 204, 0.4);
-        padding: 20px;
-        border-radius: 15px;
+    /* Bounty Board Styling (keyed containers) */
+    div[class*="st-key-hud_bounty"][class*="st-key-hud_bounty"][class*="st-key-hud_bounty"][class*="st-key-hud_bounty"] {
+        background: rgba(0, 255, 204, 0.05) !important;
+        border: 1px dashed rgba(0, 255, 204, 0.4) !important;
+        padding: 20px !important;
+        border-radius: 15px !important;
         margin-bottom: 20px;
+        backdrop-filter: none;
+        box-shadow: none;
     }
-    
+
     /* Quest Cards Styling */
     .quest-card {
         background: rgba(30, 20, 10, 0.45);
@@ -121,7 +139,7 @@ st.markdown("""
         text-align: center;
         margin-bottom: 10px;
     }
-    
+
     /* Flex Grid Container for Profile Badges */
     .profile-honors-flex-container {
         display: flex;
@@ -132,7 +150,7 @@ st.markdown("""
         min-height: 52px;
         align-items: center;
     }
-    
+
     /* Compact Profile Badge Design */
     .profile-honor-badge {
         background: rgba(0, 255, 204, 0.12);
@@ -146,7 +164,7 @@ st.markdown("""
         box-shadow: 0 0 6px rgba(0, 255, 204, 0.15);
         white-space: nowrap;
     }
-    
+
     /* Character Images */
     div[data-testid="stImage"] img {
         max-height: 135px !important;
@@ -169,7 +187,7 @@ st.markdown("""
     }
 
     [data-testid="stMetricValue"] { color: #00ffcc !important; font-family: 'Courier New', monospace; }
-    
+
     /* Expander */
     div[data-testid="stExpander"] {
         background-color: rgba(30, 30, 30, 0.5) !important;
@@ -178,13 +196,13 @@ st.markdown("""
         margin-top: 15px !important;
     }
 
-    /* Boss Battle CSS */
-    .battle-hud-box {
+    /* Boss Battle CSS (keyed container) */
+    div[class*="st-key-hud_battle"][class*="st-key-hud_battle"][class*="st-key-hud_battle"][class*="st-key-hud_battle"] {
         background: linear-gradient(180deg, rgba(0,0,120,0.85) 0%, rgba(0,0,40,0.95) 100%) !important;
         border: 3px solid #ffffff !important;
         border-radius: 12px !important;
         padding: 20px !important;
-        box-shadow: inset 0 0 15px rgba(255,255,255,0.2), 0 10px 30px rgba(0,0,0,0.9);
+        box-shadow: inset 0 0 15px rgba(255,255,255,0.2), 0 10px 30px rgba(0,0,0,0.9) !important;
         font-family: 'Courier New', monospace;
     }
     .boss-profile-container {
@@ -258,6 +276,13 @@ st.markdown("""
         padding: 14px 18px;
         margin-bottom: 10px;
     }
+    .data-stamp {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: #9adfd0 !important;
+        margin-top: -10px;
+        margin-bottom: 14px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -271,11 +296,14 @@ AVATARS = {
     "Victor (Vincent)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Vincent_Valentine_from_FFVII_Rebirth_promo_render.webp"
 }
 
+# Direct raw link (not the github.com "?raw=true" redirect) so the screenshot button can capture it.
+SEPHIROTH_IMG = "https://raw.githubusercontent.com/BHSESM/midgar-ops/c0fcf5cc9ab880e330b5d3314d3e10b6afdee8fe/Sephtransp.png"
+
 TITLES = [
-    "Sector 7 Recruit 🧰", "Midgar Mechanic 🔧", "Shinra Support Agent 🖥️", 
-    "Turk-in-Training 💼", "Materia Engineer 💠", "Junon Operative ⚙️", 
-    "Rocket Town Specialist 🚀", "Nibelheim Technician 🔩", "SOLDIER Tech 3rd Class ⚔️", 
-    "SOLDIER Tech 2nd Class ⚔️", "SOLDIER Tech 1st Class ⚔️", "Midgar Hero 🛡️", 
+    "Sector 7 Recruit 🧰", "Midgar Mechanic 🔧", "Shinra Support Agent 🖥️",
+    "Turk-in-Training 💼", "Materia Engineer 💠", "Junon Operative ⚙️",
+    "Rocket Town Specialist 🚀", "Nibelheim Technician 🔩", "SOLDIER Tech 3rd Class ⚔️",
+    "SOLDIER Tech 2nd Class ⚔️", "SOLDIER Tech 1st Class ⚔️", "Midgar Hero 🛡️",
     "Planet's Defender 🌿", "Lifestream Sage 💫", "Ancient of the LAN ✨"
 ]
 
@@ -318,37 +346,63 @@ OUTCOME_KEYS = [
     "Abort D2S", "Abort S2S", "Abort INV", "Abort NC"
 ]
 
+# Team mission targets (used on the Bounty Board, Party Spirit and the Morning Brief)
+GOAL_OUT = 500
+GOAL_ANS = 98.0
+MAX_AWOL = 5.0
+GOAL_SLA = 92.5
+
+# Boss settings
+BOSS_MAX_HP = 95000
+BOSS_DMG_PER_EXP = 10
+
+# Working pattern for pacing: Mon-Fri full team, Saturday skeleton crew (counts as half a day), Sunday closed.
+SATURDAY_WEIGHT = 0.5
+
+# Non-operative keys stored alongside the operatives in the saved data
+RESERVED_KEYS = {"team_stats", "volume_stats", "outcome_stats", "meta", "history_log"}
+REMOVED_FIELDS = ("avg_ans_time", "avg_call_time")
+
+# Daily history entries are stored compactly as lists in this order
+HIST_FIELDS = ["in", "out", "open", "close", "ans", "awol", "lvl", "exp"]
+HIST_MAX_ENTRIES = 45
+
+LINE_COLORS = ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00", "#c77dff", "#ff8c42"]
+
+
 # --- 4. CORE ENGINE FUNCTIONS ---
 def get_stats(stats):
     frontline_exp = stats["in"] + stats["out"] + stats["open"] + stats["close"]
-    
+
     side_quest_exp = 0
     side_quest_gil = 0
     for quest in stats.get("side_quests", []):
         side_quest_exp += quest.get("simulated_exp", 0)
         side_quest_gil += quest.get("gil_reward", 0)
-        
+
     exp = frontline_exp + side_quest_exp
     level = int(math.sqrt(exp / 50))
     rank = TITLES[min(max(level - 1, 0), len(TITLES) - 1)]
-    
+
     current_lvl_base = 50 * (level ** 2)
     next_lvl_base = 50 * ((level + 1) ** 2)
     exp_in_level = exp - current_lvl_base
     exp_needed_total = next_lvl_base - current_lvl_base
     exp_pct = min(1.0, max(0.0, exp_in_level / exp_needed_total)) if exp_needed_total > 0 else 0
-    
-    max_hp = 10 * (level ** 2) if level > 0 else 100
+
+    # HP never drops below 100, so levelling up can never shrink the pool.
+    max_hp = max(100, 10 * (level ** 2))
     damage = round(((1 - (stats["ans"] / 100)) * 800) + (stats["awol"] * 9))
     current_hp = max(0, max_hp - damage)
     hp_pct = current_hp / max_hp if max_hp > 0 else 0
-    
-    weight = stats.get("weight", 1.0)
+
+    # Weight is synced from SHIFT_WEIGHTS on every load (see init below)
+    weight = stats.get("weight", 1.0) or 1.0
     frontline_gil = round((frontline_exp / weight) ** 0.9) if frontline_exp > 0 else 0
-    
+
     total_earned = frontline_gil + side_quest_gil
     current_gil = total_earned - stats.get("spent", 0)
-    
+
     return {
         "Level": level,
         "Rank": rank,
@@ -377,11 +431,34 @@ def get_daily_averages(name, stats):
         "avg_close": math.floor(stats["close"] / effective_days),
     }
 
+def frontline_activity(name):
+    s = st.session_state.master_data[name]
+    return s["in"] + s["out"] + s["open"] + s["close"]
+
 def calculate_winners(metric, staff_list, high_is_best=True):
-    if not staff_list: return []
-    vals = {n: st.session_state.master_data[n][metric] for n in staff_list}
+    # Only operatives who have actually logged some work are in the running,
+    # so nobody wins a badge on day 1 just because everyone is still on zero.
+    active = [n for n in staff_list if frontline_activity(n) > 0]
+    if not active:
+        return []
+    vals = {n: st.session_state.master_data[n][metric] for n in active}
     target = max(vals.values()) if high_is_best else min(vals.values())
+    if high_is_best and target <= 0:
+        return []
     return [n for n, v in vals.items() if v == target]
+
+def hp_colour(pct, hi=0.75, lo=0.40):
+    if pct > hi: return "#00ffcc"
+    if pct > lo: return "#ffcc00"
+    return "#ff4b4b"
+
+def fresh_operative():
+    return {
+        "in": 0, "out": 0, "open": 0, "close": 0,
+        "ans": 100, "awol": 0, "weight": 1.0,
+        "spent": 0, "history": [], "days_worked": 0,
+        "side_quests": [], "active_quest": {},
+    }
 
 def load_data():
     if "staff_json" in st.secrets:
@@ -396,15 +473,7 @@ def load_data():
             data["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
         return data
 
-    base = {
-        name: {
-            "in": 0, "out": 0, "open": 0, "close": 0,
-            "ans": 100, "awol": 0, "weight": 1.0,
-            "spent": 0, "history": [], "days_worked": 0,
-            "side_quests": [], "active_quest": {},
-            "avg_ans_time": "00:00:15", "avg_call_time": "00:03:30"
-        } for name in AVATARS.keys()
-    }
+    base = {name: fresh_operative() for name in AVATARS.keys()}
     base["team_stats"] = {
         "success_pct": 0.0, "sla_pct": 0.0,
         "longest_wait": "00:00:00", "avg_queue": "00:00:00"
@@ -413,43 +482,197 @@ def load_data():
     base["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
     return base
 
+
+# --- DATES, PACING & HISTORY HELPERS ---
+def day_weight(d):
+    wd = d.weekday()
+    if wd < 5: return 1.0
+    if wd == 5: return SATURDAY_WEIGHT
+    return 0.0
+
+def month_days(d):
+    n = calendar.monthrange(d.year, d.month)[1]
+    return [date(d.year, d.month, i) for i in range(1, n + 1)]
+
+def month_progress(d):
+    """(working days elapsed up to and including d, total working days in d's month)"""
+    days = month_days(d)
+    total = sum(day_weight(x) for x in days)
+    elapsed = sum(day_weight(x) for x in days if x <= d)
+    return elapsed, total
+
+def previous_working_day(today):
+    d = today - timedelta(days=1)
+    while day_weight(d) == 0:
+        d -= timedelta(days=1)
+    return d
+
+def get_data_date():
+    s = st.session_state.master_data.get("meta", {}).get("data_date")
+    try:
+        return date.fromisoformat(s)
+    except (TypeError, ValueError):
+        return now_uk().date()
+
+def fmt_day(d):
+    return d.strftime("%a %d %b")
+
+def data_stamp_text():
+    meta = st.session_state.master_data.get("meta", {})
+    if not meta.get("data_date"):
+        return "No morning update committed yet"
+    txt = f"📅 Data up to {fmt_day(get_data_date())}"
+    if meta.get("last_updated"):
+        txt += f"  ·  updated {meta['last_updated']}"
+    return txt
+
+def touch_last_updated():
+    st.session_state.master_data.setdefault("meta", {})["last_updated"] = now_uk().strftime("%a %d %b %H:%M")
+
+def record_history(for_date):
+    md = st.session_state.master_data
+    hist = md.setdefault("history_log", {})
+    entry = {}
+    for n in STAFF_NAMES:
+        s = md[n]
+        r = get_stats(s)
+        entry[n] = [s["in"], s["out"], s["open"], s["close"], s["ans"], s["awol"], r["Level"], r["Raw_EXP"]]
+    hist[for_date.isoformat()] = entry
+    for old in sorted(hist)[:-HIST_MAX_ENTRIES]:
+        del hist[old]
+
+def get_level_ups():
+    """Compare live levels against the last history entry before the current data date."""
+    md = st.session_state.master_data
+    hist = md.get("history_log", {})
+    d = get_data_date().isoformat()
+    prev_dates = [k for k in hist if k < d]
+    if not prev_dates:
+        return []
+    prev = hist[max(prev_dates)]
+    ups = []
+    for n in STAFF_NAMES:
+        if n not in prev:
+            continue
+        old_lvl = prev[n][HIST_FIELDS.index("lvl")]
+        r = get_stats(md[n])
+        if r["Level"] > old_lvl:
+            old_rank = TITLES[min(max(old_lvl - 1, 0), len(TITLES) - 1)]
+            ups.append({"name": n, "from": old_lvl, "to": r["Level"],
+                        "rank": r["Rank"], "new_rank": r["Rank"] != old_rank})
+    return ups
+
+def boss_state(total_exp):
+    damage = total_exp * BOSS_DMG_PER_EXP
+    hp = max(0, BOSS_MAX_HP - damage)
+    pct = hp / BOSS_MAX_HP
+    if pct > 0.50:
+        phase = "Form 1: Sephiroth (SOLDIER Legend)"
+        flavour = "🔮 Sephiroth calmly prepares his blade... 'Is that all the strength the planet has left?'"
+    elif pct > 0.15:
+        phase = "Form 2: Bizarro Sephiroth (Core Mutation)"
+        flavour = "⚡ The battlefield distorts! Bizarro Sephiroth emerges from the deep energetic Lifestream!"
+    elif pct > 0.0:
+        phase = "FINAL Form: Safer Sephiroth (One-Winged Angel Apex)"
+        flavour = "🌌 CRITICAL! Sephiroth is calling down Supernova! Break his defenses immediately!"
+    else:
+        phase = "💥 SEPHIROTH DEFEATED 💥"
+        flavour = "✨ VICTORY FANFARE! The planet is secure! Grid colors neutralized."
+    return {"damage": damage, "hp": hp, "pct": pct, "phase": phase, "flavour": flavour}
+
+def boss_projection(total_exp, d):
+    """Plain-English forecast of when Sephiroth falls at the current pace."""
+    needed = BOSS_MAX_HP / BOSS_DMG_PER_EXP
+    if total_exp >= needed:
+        return "💥 Already defeated this month!"
+    elapsed, total = month_progress(d)
+    if elapsed <= 0 or total_exp <= 0:
+        return "⏳ Forecast appears once the month gets going."
+    rate = total_exp / elapsed
+    cum = 0.0
+    for x in month_days(d):
+        cum += day_weight(x)
+        if cum * rate >= needed:
+            return f"🎯 At this pace Sephiroth falls on {fmt_day(x)}."
+    proj_pct = min(100, rate * total / needed * 100)
+    return f"⚠️ At this pace we'll land {proj_pct:.0f}% of the damage needed – time to turn it up!"
+
+def team_overview():
+    md = st.session_state.master_data
+    all_res = {n: get_stats(md[n]) for n in STAFF_NAMES}
+    n_staff = len(STAFF_NAMES) or 1
+    total_out = sum(md[n]["out"] for n in STAFF_NAMES)
+    avg_ans = sum(md[n]["ans"] for n in STAFF_NAMES) / n_staff if STAFF_NAMES else 100.0
+    total_awol = sum(md[n]["awol"] for n in STAFF_NAMES)
+    sla = float(md["team_stats"]["sla_pct"])
+    missions = [
+        ("📞 Outbound", total_out >= GOAL_OUT, f"{total_out}/{GOAL_OUT}"),
+        ("🛡️ Answer Rate", avg_ans >= GOAL_ANS, f"{avg_ans:.1f}%"),
+        ("🐌 AWOL Pool", total_awol <= MAX_AWOL, f"{total_awol}/{MAX_AWOL:g}m"),
+        ("📋 SLA", sla >= GOAL_SLA, f"{sla:.1f}%"),
+    ]
+    missions_hit = sum(1 for m in missions if m[1])
+    avg_lvl = round(sum(r["Level"] for r in all_res.values()) / n_staff, 1) if STAFF_NAMES else 0
+    combined = missions_hit + int(avg_lvl / 3)
+    title, flavour = TEAM_TITLES[min(combined, len(TEAM_TITLES) - 1)]
+    total_exp = sum(r["Raw_EXP"] for r in all_res.values())
+    return {
+        "all_res": all_res, "total_out": total_out, "avg_ans": avg_ans, "total_awol": total_awol,
+        "sla": sla, "missions": missions, "missions_hit": missions_hit, "avg_lvl": avg_lvl,
+        "title": title, "flavour": flavour, "total_exp": total_exp,
+    }
+
+def parse_quest_time(q, year):
+    if q.get("ts"):
+        try:
+            return datetime.fromisoformat(q["ts"]).replace(tzinfo=None)
+        except ValueError:
+            pass
+    try:
+        return datetime.strptime(f"{q.get('timestamp', '')}/{year}", "%d/%m %H:%M/%Y")
+    except ValueError:
+        return datetime.min
+
+
 # --- RUNNING INIT SEQUENCING ---
 if "master_data" not in st.session_state:
     st.session_state.master_data = load_data()
+if "editor_ver" not in st.session_state:
+    st.session_state.editor_ver = 0
 
-for _name in list(st.session_state.master_data.keys()):
-    if _name not in ["team_stats", "volume_stats", "outcome_stats"]:
-        st.session_state.master_data[_name].setdefault("days_worked", 0)
-        st.session_state.master_data[_name].setdefault("side_quests", [])
-        st.session_state.master_data[_name].setdefault("active_quest", {})
-        st.session_state.master_data[_name].setdefault("history", [])
-        st.session_state.master_data[_name].setdefault("spent", 0)
-        st.session_state.master_data[_name].setdefault("avg_ans_time", "00:00:15")
-        st.session_state.master_data[_name].setdefault("avg_call_time", "00:03:30")
+md = st.session_state.master_data
+for _name, _val in list(md.items()):
+    if _name in RESERVED_KEYS or not isinstance(_val, dict) or "in" not in _val:
+        continue
+    _val.setdefault("days_worked", 0)
+    _val.setdefault("side_quests", [])
+    _val.setdefault("active_quest", {})
+    _val.setdefault("history", [])
+    _val.setdefault("spent", 0)
+    for _f in REMOVED_FIELDS:
+        _val.pop(_f, None)
+    # Keep GIL weighting in step with SHIFT_WEIGHTS everywhere
+    _val["weight"] = SHIFT_WEIGHTS.get(_name, _val.get("weight", 1.0))
 
-st.session_state.master_data.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
-st.session_state.master_data.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
+md.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
+md.setdefault("outcome_stats", {key: "0.0%" for key in OUTCOME_KEYS})
+md.setdefault("meta", {})
+md.setdefault("history_log", {})
 
 STAFF_NAMES = [
-    k for k in st.session_state.master_data.keys() 
-    if k not in ["team_stats", "volume_stats", "outcome_stats"] 
-    and isinstance(st.session_state.master_data[k], dict) 
-    and "in" in st.session_state.master_data[k]
+    k for k in md.keys()
+    if k not in RESERVED_KEYS
+    and isinstance(md[k], dict)
+    and "in" in md[k]
 ]
 
-if "daily_snapshot_data" not in st.session_state:
-    st.session_state.daily_snapshot_data = {
-        name: {
-            "answered": 0, "pct": "100%", "outbound": 0, "open": 0, "close": 0,
-            "avg_ans_time": "00:00:15", "avg_call_time": "00:03:30"
-        }
-        for name in STAFF_NAMES
-    }
+def blank_snapshot():
+    return {"answered": 0, "pct": 100.0, "outbound": 0, "open": 0, "close": 0}
 
+if "daily_snapshot_data" not in st.session_state:
+    st.session_state.daily_snapshot_data = {name: blank_snapshot() for name in STAFF_NAMES}
 for name in STAFF_NAMES:
-    if name in st.session_state.daily_snapshot_data:
-        st.session_state.daily_snapshot_data[name].setdefault("avg_ans_time", "00:00:15")
-        st.session_state.daily_snapshot_data[name].setdefault("avg_call_time", "00:03:30")
+    st.session_state.daily_snapshot_data.setdefault(name, blank_snapshot())
 
 HONORS_MAP = [
     ("📞 Inbound King/Queen", "in", True),
@@ -462,108 +685,383 @@ HONORS_MAP = [
 
 OPERATIVE_HONORS = {name: [] for name in STAFF_NAMES}
 for title, key, is_high in HONORS_MAP:
-    winners = calculate_winners(key, STAFF_NAMES, is_high)
-    for winner in winners:
+    for winner in calculate_winners(key, STAFF_NAMES, is_high):
         OPERATIVE_HONORS[winner].append(title)
 
+
+# --- SCREENSHOT / CAPTURE COMPONENT ---
+CAPTURE_BASE_CSS = """
+* { box-sizing: border-box; }
+body { margin: 0; background: transparent; font-family: 'Segoe UI', Arial, sans-serif; color: #f0f0f0; }
+.toolbar { display: flex; gap: 10px; align-items: center; margin: 4px 0 12px; }
+.toolbar button {
+    background: rgba(0,255,204,0.12); color: #00ffcc; border: 1px solid #00ffcc; border-radius: 8px;
+    padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer; font-family: 'Courier New', monospace;
+}
+.toolbar button:hover { background: rgba(0,255,204,0.25); }
+#st { color: #ccc; font-size: 13px; }
+#cap { display: inline-block; background: #0a0e13; padding: 22px; border-radius: 14px; border: 1px solid rgba(0,255,204,0.35); }
+.mono { font-family: 'Courier New', monospace; }
+.bar { background: rgba(255,255,255,0.08); border-radius: 4px; height: 9px; overflow: hidden; }
+.bar > div { height: 100%; }
+"""
+
+CAPTURE_JS = """
+const statusEl = document.getElementById('st');
+function setS(t) { statusEl.textContent = t; }
+function render() {
+  return html2canvas(document.getElementById('cap'),
+    { useCORS: true, backgroundColor: '#0a0e13', scale: 2, logging: false });
+}
+function toBlob(c) { return new Promise(r => c.toBlob(r, 'image/png')); }
+function ready() {
+  if (typeof html2canvas === 'undefined') { setS('Screenshot tool still loading – try again in a second'); return false; }
+  return true;
+}
+async function copyImg() {
+  if (!ready()) return;
+  setS('Capturing…');
+  try {
+    const item = new ClipboardItem({ 'image/png': render().then(toBlob) });
+    await navigator.clipboard.write([item]);
+    setS('✅ Copied – paste straight into Teams (Ctrl+V)');
+  } catch (e) {
+    console.error(e);
+    setS('⚠️ Your browser blocked copying – use Download instead');
+  }
+}
+async function dlImg() {
+  if (!ready()) return;
+  setS('Capturing…');
+  try {
+    const c = await render();
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = FILENAME;
+    document.body.appendChild(a); a.click(); a.remove();
+    setS('💾 Downloaded');
+  } catch (e) {
+    console.error(e);
+    setS('⚠️ Download failed');
+  }
+}
+"""
+
+def capture_component(inner_html, extra_css, height, filename):
+    doc = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>"
+        f"<style>{CAPTURE_BASE_CSS}{extra_css}</style></head><body>"
+        "<div class='toolbar'>"
+        "<button onclick='copyImg()'>📋 Copy image</button>"
+        "<button onclick='dlImg()'>💾 Download PNG</button>"
+        "<span id='st'></span></div>"
+        f"<div id='cap'>{inner_html}</div>"
+        f"<script>const FILENAME = {json.dumps(filename)};{CAPTURE_JS}</script>"
+        "</body></html>"
+    )
+    if hasattr(st, "iframe"):
+        # Newer Streamlit: auto-sizes the frame to fit the brief
+        st.iframe(doc, height="content")
+    else:
+        components.html(doc, height=height, scrolling=True)
+
+
+BRIEF_CSS = """
+#cap { width: 1180px; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(0,255,204,0.35); padding-bottom: 12px; margin-bottom: 16px; }
+.hdr .t { font-size: 26px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; letter-spacing: 1px; }
+.hdr .s { font-size: 13px; color: #9adfd0; font-family: 'Courier New', monospace; text-align: right; line-height: 1.5; }
+.row { display: flex; gap: 14px; margin-bottom: 16px; }
+.panel { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-radius: 12px; padding: 14px 16px; }
+.lbl { font-size: 11px; color: #8a9; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
+.team { font-size: 22px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; }
+.flav { font-size: 12px; color: #bbb; font-style: italic; margin-top: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { border-radius: 14px; padding: 3px 10px; font-size: 12px; }
+.chip.ok { background: rgba(0,255,204,0.14); border: 1px solid rgba(0,255,204,0.6); color: #00ffcc; }
+.chip.no { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.2); color: #999; }
+.boss { display: flex; gap: 14px; align-items: center; }
+.boss img { height: 84px; border-radius: 8px; border: 2px solid #ff4b4b; }
+.lvlups { background: rgba(255,204,0,0.08); border: 1px solid rgba(255,204,0,0.55); border-radius: 12px; padding: 10px 16px; margin-bottom: 16px; }
+.lvlups .h { color: #ffcc00; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+.lvlups .i { font-size: 14px; color: #f0f0f0; margin: 3px 0; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.card { background: rgba(20,20,20,0.9); border: 1px solid; border-radius: 12px; padding: 14px; }
+.card .top { display: flex; gap: 12px; align-items: center; }
+.card img { width: 72px; height: 72px; object-fit: contain; }
+.card .nm { font-size: 17px; font-weight: bold; }
+.card .rk { font-size: 12px; color: #bbb; }
+.card .lv { font-size: 13px; color: #00ffcc; font-family: 'Courier New', monospace; margin-top: 2px; }
+.g6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; background: rgba(0,0,0,0.45); border-radius: 8px; padding: 8px 4px; margin: 10px 0 8px; }
+.g6 div { text-align: center; font-size: 10px; color: #999; }
+.g6 b { display: block; color: #00ffcc; font-size: 13px; font-family: 'Courier New', monospace; }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px; margin-bottom: 8px; }
+.badge { font-size: 10px; color: #00ffcc; border: 1px solid rgba(0,255,204,0.6); border-radius: 4px; padding: 1px 5px; }
+.bl { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin: 6px 0 3px; font-family: 'Courier New', monospace; }
+.avgs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.avg h4 { margin: 0 0 8px; font-size: 14px; font-family: 'Courier New', monospace; }
+.ar { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12px; }
+.ar .n { width: 64px; color: #ccc; }
+.ar .bar { flex: 1; height: 14px; }
+.ar .v { width: 34px; text-align: right; font-family: 'Courier New', monospace; font-weight: bold; }
+.foot { margin-top: 14px; font-size: 11px; color: #667; text-align: center; font-family: 'Courier New', monospace; }
+"""
+
+def build_brief_html():
+    md = st.session_state.master_data
+    ov = team_overview()
+    boss = boss_state(ov["total_exp"])
+    d = get_data_date()
+    elapsed, total = month_progress(d)
+    ups = get_level_ups()
+    meta = md.get("meta", {})
+
+    chips = "".join(
+        f"<span class='chip {'ok' if hit else 'no'}'>{'✅' if hit else '⬜'} {html.escape(lbl)} · {html.escape(val)}</span>"
+        for lbl, hit, val in ov["missions"]
+    )
+    pace_out = round(GOAL_OUT * elapsed / total) if total else 0
+
+    parts = []
+    parts.append(
+        "<div class='hdr'><div class='t'>⚔️ MIDGAR OPS · MORNING BRIEF</div>"
+        f"<div class='s'>Data up to {fmt_day(d)}<br>"
+        f"Day {elapsed:g} of {total:g} working days"
+        + (f" · updated {html.escape(meta['last_updated'])}" if meta.get('last_updated') else "")
+        + "</div></div>"
+    )
+    boss_col = "#ff4b4b" if boss["hp"] > 0 else "#00ffcc"
+    parts.append(
+        "<div class='row'>"
+        "<div class='panel'><div class='lbl'>Party designation</div>"
+        f"<div class='team'>{html.escape(ov['title'])}</div><div class='flav'>{html.escape(ov['flavour'])}</div>"
+        f"<div class='chips'>{chips}</div>"
+        f"<div class='flav' style='margin-top:8px;'>Outbound pace check: target by now ≈ {pace_out}, actual {ov['total_out']}</div></div>"
+        "<div class='panel'><div class='boss'>"
+        f"<img src='{SEPHIROTH_IMG}' crossorigin='anonymous'>"
+        "<div style='flex:1;'><div class='lbl'>Month-end boss</div>"
+        f"<div style='color:{boss_col};font-weight:bold;font-size:15px;'>{html.escape(boss['phase'])}</div>"
+        f"<div class='bl'><span>HP</span><span>{boss['hp']:,} / {BOSS_MAX_HP:,}</span></div>"
+        f"<div class='bar' style='height:12px;'><div style='width:{boss['pct']*100:.1f}%;background:{boss_col};'></div></div>"
+        f"<div class='flav' style='margin-top:6px;'>{html.escape(boss_projection(ov['total_exp'], d))}</div>"
+        "</div></div></div></div>"
+    )
+
+    if ups:
+        items = ""
+        for u in ups:
+            line = f"🌟 <b>{html.escape(u['name'])}</b> reached <b>Level {u['to']}</b>"
+            if u["new_rank"]:
+                line += f" – new title: <b>{html.escape(u['rank'])}</b>"
+            items += f"<div class='i'>{line}</div>"
+        parts.append(f"<div class='lvlups'><div class='h'>🎉 LEVEL UP!</div>{items}</div>")
+
+    cards = ""
+    for name in STAFF_NAMES:
+        s = md[name]
+        r = ov["all_res"][name]
+        col = hp_colour(r["HP_Pct"])
+        badges = "".join(f"<span class='badge'>{html.escape(b)}</span>" for b in OPERATIVE_HONORS[name])
+        cards += (
+            f"<div class='card' style='border-color:{col};'>"
+            f"<div class='top'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'>"
+            f"<div><div class='nm'>{html.escape(name)}</div><div class='rk'>{html.escape(r['Rank'])}</div>"
+            f"<div class='lv'>LVL {r['Level']} · 💰 {r['GIL']:,} GIL</div></div></div>"
+            "<div class='g6'>"
+            f"<div>IN<b>{s['in']}</b></div><div>OUT<b>{s['out']}</b></div>"
+            f"<div>OPEN<b>{s['open']}</b></div><div>CLOSE<b>{s['close']}</b></div>"
+            f"<div>ANS%<b>{s['ans']}%</b></div><div>AWOL<b>{s['awol']}m</b></div></div>"
+            f"<div class='badges'>{badges}</div>"
+            f"<div class='bl'><span>❤️ HP</span><span>{r['HP_Display']}</span></div>"
+            f"<div class='bar'><div style='width:{r['HP_Pct']*100:.1f}%;background:{col};'></div></div>"
+            f"<div class='bl'><span>💠 EXP</span><span>{r['Next_XP']} to next</span></div>"
+            f"<div class='bar'><div style='width:{r['EXP_Pct']*100:.1f}%;background:#0099ff;'></div></div>"
+            "</div>"
+        )
+    parts.append(f"<div class='cards'>{cards}</div>")
+
+    avg_specs = [("Avg Inbound / day", "avg_in", "#00ffcc"), ("Avg Outbound / day", "avg_out", "#0099ff"),
+                 ("Avg Tickets Opened / day", "avg_open", "#ff4b4b"), ("Avg Tickets Closed / day", "avg_close", "#ffcc00")]
+    all_avgs = {n: get_daily_averages(n, md[n]) for n in STAFF_NAMES}
+    panels = ""
+    for label, key, colr in avg_specs:
+        vals = {n: (all_avgs[n][key] or 0) for n in STAFF_NAMES}
+        mx = max(vals.values()) if vals and max(vals.values()) > 0 else 1
+        rows = "".join(
+            f"<div class='ar'><span class='n'>{html.escape(n.split(' ')[0])}</span>"
+            f"<div class='bar'><div style='width:{v / mx * 100:.1f}%;background:{colr};'></div></div>"
+            f"<span class='v' style='color:{colr};'>{v}</span></div>"
+            for n, v in vals.items()
+        )
+        panels += f"<div class='panel avg'><h4 style='color:{colr};'>{label} (weighted)</h4>{rows}</div>"
+    parts.append(f"<div class='lbl'>📅 Weighted daily averages</div><div class='avgs'>{panels}</div>")
+    parts.append("<div class='foot'>Shinra Ops Dashboard · Avalanche HQ</div>")
+
+    card_rows = math.ceil(len(STAFF_NAMES) / 3)
+    height = 330 + (40 + 28 * len(ups) if ups else 0) + card_rows * 290 + 2 * (70 + 26 * len(STAFF_NAMES)) + 140
+    return "".join(parts), height
+
+
+SNAP_CSS = """
+#cap { width: 1180px; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(0,255,204,0.35); padding-bottom: 12px; margin-bottom: 16px; }
+.hdr .t { font-size: 24px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; }
+.hdr .s { font-size: 13px; color: #9adfd0; font-family: 'Courier New', monospace; }
+.tot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.tot div { background: rgba(0,255,204,0.06); border: 1px solid rgba(0,255,204,0.3); border-radius: 10px; text-align: center; padding: 10px; font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+.tot b { display: block; font-size: 26px; color: #00ffcc; font-family: 'Courier New', monospace; letter-spacing: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.sc { background: rgba(20,20,20,0.9); border: 1px solid rgba(0,255,204,0.5); border-radius: 12px; padding: 14px; }
+.sc .top { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.sc img { width: 60px; height: 60px; object-fit: contain; border: 2px solid #00ffcc; border-radius: 8px; background: rgba(0,0,0,0.5); }
+.sc .nm { font-size: 19px; font-weight: bold; }
+table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; }
+th { background: rgba(0,255,204,0.15); color: #00ffcc; padding: 6px; border: 1px solid rgba(255,255,255,0.1); }
+td { padding: 8px; border: 1px solid rgba(255,255,255,0.1); font-family: 'Courier New', monospace; font-weight: bold; font-size: 16px; background: rgba(0,0,0,0.35); }
+"""
+
+def snapshot_gil(name, snap):
+    daily_exp = snap["answered"] + snap["outbound"] + snap["open"] + snap["close"]
+    weight = SHIFT_WEIGHTS.get(name, 1.0)
+    return round((daily_exp / weight) ** 0.9) if daily_exp > 0 else 0
+
+def fmt_pct(v):
+    try:
+        f = float(v)
+        return f"{f:g}%"
+    except (TypeError, ValueError):
+        return str(v)
+
+def build_snapshot_html():
+    snaps = st.session_state.daily_snapshot_data
+    stamp = st.session_state.get("snapshot_stamp", "not yet updated today")
+    tot_ans = sum(snaps[n]["answered"] for n in STAFF_NAMES)
+    tot_out = sum(snaps[n]["outbound"] for n in STAFF_NAMES)
+    tot_open = sum(snaps[n]["open"] for n in STAFF_NAMES)
+    tot_close = sum(snaps[n]["close"] for n in STAFF_NAMES)
+    parts = [
+        "<div class='hdr'><div class='t'>⚡ DAILY TACTICAL SNAPSHOT</div>"
+        f"<div class='s'>{html.escape(stamp)}</div></div>",
+        "<div class='tot'>"
+        f"<div><b>{tot_ans}</b>Calls answered</div><div><b>{tot_out}</b>Outbound</div>"
+        f"<div><b>{tot_open}</b>SD opened</div><div><b>{tot_close}</b>SD closed</div></div>",
+    ]
+    cards = ""
+    for name in STAFF_NAMES:
+        s = snaps[name]
+        cards += (
+            "<div class='sc'>"
+            f"<div class='top'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'><div class='nm'>{html.escape(name)}</div></div>"
+            "<table><tr><th>Calls Ans</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. GIL</th></tr>"
+            f"<tr><td>{s['answered']}</td><td style='color:#00ffcc;'>{fmt_pct(s['pct'])}</td><td>{s['outbound']}</td>"
+            f"<td style='color:#ff4b4b;'>{s['open']}</td><td style='color:#00ffcc;'>{s['close']}</td>"
+            f"<td style='color:#ffcc00;'>💰 {snapshot_gil(name, s)}</td></tr></table></div>"
+        )
+    parts.append(f"<div class='grid'>{cards}</div>")
+    height = 300 + math.ceil(len(STAFF_NAMES) / 2) * 175
+    return "".join(parts), height
+
+
+def style_fig(fig, height=300):
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=10, t=40, b=10), height=height,
+        legend=dict(font=dict(color="#aaa", family="Courier New"), bgcolor="rgba(0,0,0,0)"),
+        xaxis=dict(tickfont=dict(color="#00ffcc", family="Courier New"), gridcolor="rgba(0,255,204,0.06)", title=None),
+        yaxis=dict(tickfont=dict(color="#aaa", family="Courier New"), gridcolor="rgba(0,255,204,0.08)", title=None),
+    )
+    return fig
+
+
 # --- TABS ---
-tabs = st.tabs([
-    "⚔️ Active Party", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests", 
-    "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts",
+(tab_party, tab_brief, tab_boss, tab_missions, tab_quests, tab_snapshot, tab_overview,
+ tab_charts, tab_trends, tab_spirit, tab_heat, tab_shop, tab_admin) = st.tabs([
+    "⚔️ Active Party", "📣 Morning Brief", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests",
+    "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts", "📉 Trends",
     "🌟 Party Spirit", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
 ])
 
 # =============================================================================
-# TAB 1: ACTIVE PARTY VIEW
+# TAB: ACTIVE PARTY VIEW
 # =============================================================================
-with tabs[0]:
+with tab_party:
     st.title("Midgar Operations: MTD Status")
+    st.markdown(f"<div class='data-stamp'>{html.escape(data_stamp_text())}</div>", unsafe_allow_html=True)
     cols = st.columns(3)
-    
+
     for i, name in enumerate(STAFF_NAMES):
-        stats = st.session_state.master_data[name]
+        stats = md[name]
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
                 st.image(AVATARS.get(name))
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
-                
+
                 st.markdown(f"""
                     <div class="mini-stat-grid">
                         <div class="mini-stat-item">IN<span class="mini-stat-value">{stats['in']}</span></div>
                         <div class="mini-stat-item">OUT<span class="mini-stat-value">{stats['out']}</span></div>
                         <div class="mini-stat-item">ANS%<span class="mini-stat-value">{stats['ans']}%</span></div>
-                        <div class="mini-stat-item">AWOL<span class="mini-stat-value">{stats['awol']}m</span></div>
                         <div class="mini-stat-item">OPEN<span class="mini-stat-value">{stats['open']}</span></div>
                         <div class="mini-stat-item">CLOSE<span class="mini-stat-value">{stats['close']}</span></div>
-                        <div class="mini-stat-item">ANS T<span class="mini-stat-value">{stats.get('avg_ans_time', '00:00:15')}</span></div>
-                        <div class="mini-stat-item">CALL T<span class="mini-stat-value">{stats.get('avg_call_time', '00:03:30')}</span></div>
+                        <div class="mini-stat-item">AWOL<span class="mini-stat-value">{stats['awol']}m</span></div>
                     </div>
                 """, unsafe_allow_html=True)
-                
+
                 st.markdown(f"<center><small style='color: #bbb;'>{res['Rank']}</small></center>", unsafe_allow_html=True)
-                
-                badge_html_buffer = ""
-                for badge in OPERATIVE_HONORS[name]:
-                    badge_html_buffer += f'<div class="profile-honor-badge">{badge}</div>'
-                
+
+                badge_html_buffer = "".join(f'<div class="profile-honor-badge">{badge}</div>' for badge in OPERATIVE_HONORS[name])
                 st.markdown(f"""
                     <div class="profile-honors-flex-container">
                         {badge_html_buffer if badge_html_buffer else '<span style="color:#555; font-size:0.75rem; font-style:italic;">No Active Honors</span>'}
                     </div>
                 """, unsafe_allow_html=True)
-                
+
                 st.write(f"❤️ Vitality (HP): {res['HP_Display']}")
                 st.progress(res["HP_Pct"])
                 st.write(f"💠 Next Level: {res['Next_XP']} EXP needed")
                 st.progress(res["EXP_Pct"])
-                
+
                 mc1, mc2 = st.columns(2)
                 mc1.metric("Level", res["Level"])
                 mc2.metric("Wallet", f"💰 {res['GIL']}")
 
 
 # =============================================================================
-# TAB 2: SEPHIROTH BOSS BATTLE
+# TAB: MORNING BRIEF (screenshot-ready)
 # =============================================================================
-with tabs[1]:
+with tab_brief:
+    st.title("📣 Morning Brief")
+    st.caption("Everything for the morning post in one frame. Press **Copy image**, then paste straight into Teams.")
+    brief_html, brief_height = build_brief_html()
+    capture_component(brief_html, BRIEF_CSS, brief_height,
+                      f"midgar-brief-{get_data_date().isoformat()}.png")
+
+
+# =============================================================================
+# TAB: SEPHIROTH BOSS BATTLE
+# =============================================================================
+with tab_boss:
     st.title("🔥 Destiny's Crossroads: The Final Month-End Showdown")
     st.write("Frontline operational volume is automatically channelled into physical damage outputs to bring down the legendary One-Winged Angel.")
-    
-    total_accumulated_exp = sum(get_stats(st.session_state.master_data[n])["Raw_EXP"] for n in STAFF_NAMES)
-    damage_dealt = total_accumulated_exp * 10
-    sephiroth_max_hp = 95000
-    sephiroth_current_hp = max(0, sephiroth_max_hp - damage_dealt)
-    sephiroth_hp_pct = sephiroth_current_hp / sephiroth_max_hp
 
-    sephiroth_profile_link = "https://github.com/BHSESM/midgar-ops/blob/c0fcf5cc9ab880e330b5d3314d3e10b6afdee8fe/Sephtransp.png?raw=true"
-
-    if sephiroth_hp_pct > 0.50:
-        boss_phase_title = "Form 1: Sephiroth (SOLDIER Legend)"
-        battlefield_status_flavor = "🔮 Sephiroth calmly prepares his blade... 'Is that all the strength the planet has left?'"
-    elif sephiroth_hp_pct > 0.15:
-        boss_phase_title = "Form 2: Bizarro Sephiroth (Core Mutation)"
-        battlefield_status_flavor = "⚡ The battlefield distorts! Bizarro Sephiroth emerges from the deep energetic Lifestream!"
-    elif sephiroth_hp_pct > 0.0:
-        boss_phase_title = "FINAL Form: Safer Sephiroth (One-Winged Angel Apex)"
-        battlefield_status_flavor = "🌌 CRITICAL! Sephiroth is calling down Supernova! Break his defenses immediately!"
-    else:
-        boss_phase_title = "💥 SEPHIROTH DEFEATED 💥"
-        battlefield_status_flavor = "✨ VICTORY FANFARE! The planet is secure! Grid colors neutralized."
+    total_accumulated_exp = sum(get_stats(md[n])["Raw_EXP"] for n in STAFF_NAMES)
+    boss = boss_state(total_accumulated_exp)
+    damage_dealt = boss["damage"]
+    sephiroth_current_hp = boss["hp"]
+    sephiroth_hp_pct = boss["pct"]
 
     b_col1, b_col2 = st.columns([1.2, 1])
-    
+
     with b_col1:
         st.subheader("⚔️ Frontline Party Formations")
         p_sub_cols = st.columns(3)
         for idx, name in enumerate(STAFF_NAMES):
-            p_stats = st.session_state.master_data[name]
-            p_res = get_stats(p_stats)
+            p_res = get_stats(md[name])
             avatar_link = AVATARS.get(name, "")
             with p_sub_cols[idx % 3]:
-                if p_res["HP_Pct"] > 0.75: border_color = "#00ffcc"
-                elif p_res["HP_Pct"] > 0.35: border_color = "#ffcc00"
-                else: border_color = "#ff4b4b"
+                border_color = hp_colour(p_res["HP_Pct"], 0.75, 0.35)
                 st.markdown(f"""
                     <div style="background: rgba(15, 15, 15, 0.8); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
                         <img src="{avatar_link}" style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;">
@@ -577,265 +1075,231 @@ with tabs[1]:
         st.subheader("🔮 The Arch-Nemesis Target")
         st.markdown(f"""
             <div class="boss-profile-container">
-                <img src="{sephiroth_profile_link}" style="max-height: 180px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #ff4b4b; box-shadow: 0 0 12px rgba(255,75,75,0.5);">
-                <h3 style="margin:0; color:#ff4b4b !important;">{boss_phase_title}</h3>
+                <img src="{SEPHIROTH_IMG}" style="max-height: 180px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #ff4b4b; box-shadow: 0 0 12px rgba(255,75,75,0.5);">
+                <h3 style="margin:0; color:#ff4b4b !important;">{boss['phase']}</h3>
                 <p style="font-size: 0.85rem; color: #888; margin: 4px 0;">Threat Status: Threat Level Omega</p>
                 <div style="font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: bold; color: #ff4b4b; margin: 10px 0;">
-                    HP: {sephiroth_current_hp:,} / {sephiroth_max_hp:,}
+                    HP: {sephiroth_current_hp:,} / {BOSS_MAX_HP:,}
                 </div>
             </div>
         """, unsafe_allow_html=True)
         st.progress(sephiroth_hp_pct)
-        st.markdown(f"<p style='text-align: center; font-style: italic; color: #ffcc00 !important;'>{battlefield_status_flavor}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center; font-style: italic; color: #ffcc00 !important;'>{boss['flavour']}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center; color: #9adfd0 !important;'>{boss_projection(total_accumulated_exp, get_data_date())}</p>", unsafe_allow_html=True)
 
     st.divider()
 
     st.subheader("🖥️ Shinra Command HUD Battlefield Log")
-    st.markdown('<div class="battle-hud-box">', unsafe_allow_html=True)
-    
-    h_r1, h_r2, h_r3 = st.columns([2, 1, 3])
-    with h_r1: st.markdown("<span style='color: #00ffcc; font-weight: bold;'>PARTY MEMBERS IN POSITION</span>", unsafe_allow_html=True)
-    with h_r2: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
-    with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (HP)</span>", unsafe_allow_html=True)
-    st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
-    
-    for name in STAFF_NAMES:
-        p_stats = st.session_state.master_data[name]
-        p_res = get_stats(p_stats)
-        if p_res["Current_HP_Raw"] == 0: hp_color_hex = "#ff4b4b"
-        elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#00ffcc"
-        else: hp_color_hex = "#ffcc00"
-        
-        r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
-        with r_c1:
-            st.markdown(f"<span class='party-battle-name' style='color: {hp_color_hex} !important;'>🔹 {name}</span>", unsafe_allow_html=True)
-        with r_c2:
-            st.markdown(f"<span style='color: #ffffff; display: block; text-align: center;'>LVL {p_res['Level']}</span>", unsafe_allow_html=True)
-        with r_c3:
-            st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px;">
-                    <div style="width: 200px; background-color: rgba(0,0,0,0.5); border: 1px solid #fff; height: 12px; border-radius: 2px; overflow: hidden;">
-                        <div style="background-color: {hp_color_hex}; width: {p_res['HP_Pct']*100}%; height: 100%;"></div>
+    with st.container(key="hud_battle"):
+        h_r1, h_r2, h_r3 = st.columns([2, 1, 3])
+        with h_r1: st.markdown("<span style='color: #00ffcc; font-weight: bold;'>PARTY MEMBERS IN POSITION</span>", unsafe_allow_html=True)
+        with h_r2: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
+        with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (HP)</span>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
+
+        for name in STAFF_NAMES:
+            p_res = get_stats(md[name])
+            if p_res["Current_HP_Raw"] == 0: hp_color_hex = "#ff4b4b"
+            elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#00ffcc"
+            else: hp_color_hex = "#ffcc00"
+
+            r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
+            with r_c1:
+                st.markdown(f"<span class='party-battle-name' style='color: {hp_color_hex} !important;'>🔹 {name}</span>", unsafe_allow_html=True)
+            with r_c2:
+                st.markdown(f"<span style='color: #ffffff; display: block; text-align: center;'>LVL {p_res['Level']}</span>", unsafe_allow_html=True)
+            with r_c3:
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 15px;">
+                        <div style="width: 200px; background-color: rgba(0,0,0,0.5); border: 1px solid #fff; height: 12px; border-radius: 2px; overflow: hidden;">
+                            <div style="background-color: {hp_color_hex}; width: {p_res['HP_Pct']*100}%; height: 100%;"></div>
+                        </div>
+                        <span class='party-battle-hp-text' style='color: {hp_color_hex} !important; width: 100px; display: inline-block; text-align: right;'>{p_res['Current_HP_Raw']} / {p_res['Max_HP_Raw']} HP</span>
                     </div>
-                    <span class='party-battle-hp-text' style='color: {hp_color_hex} !important; width: 100px; display: inline-block; text-align: right;'>{p_res['Current_HP_Raw']} / {p_res['Max_HP_Raw']} HP</span>
-                </div>
-            """, unsafe_allow_html=True)
-            
-    st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
-    st.markdown(f"<p style='margin:0; font-size:0.95rem; color:#aaa;'>💬 <strong>TACTICAL SENSORS REPORT:</strong> Total Month-To-Date collective damage output computed at <strong>{damage_dealt:,} points</strong>. Target Sephiroth has sustained <strong>{(1.0 - sephiroth_hp_pct)*100:.1f}%</strong> volume degradation from direct frontline encounters.</p>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+
+        st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
+        st.markdown(f"<p style='margin:0; font-size:0.95rem; color:#aaa;'>💬 <strong>TACTICAL SENSORS REPORT:</strong> Total Month-To-Date collective damage output computed at <strong>{damage_dealt:,} points</strong>. Target Sephiroth has sustained <strong>{(1.0 - sephiroth_hp_pct)*100:.1f}%</strong> volume degradation from direct frontline encounters.</p>", unsafe_allow_html=True)
 
 
 # =============================================================================
-# TAB 3: TEAM MISSIONS & BOUNTIES
+# TAB: TEAM MISSIONS & BOUNTIES
 # =============================================================================
-with tabs[2]:
+with tab_missions:
     st.title("📜 Sector 7 Bounty Board")
-    
-    total_out = sum(st.session_state.master_data[n]["out"] for n in STAFF_NAMES)
-    goal_out = 500
-    st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
-    st.subheader("⚔️ TEAM MISSION: Clear the Communications Jam")
-    st.write(f"Objective: Reach a collective **{goal_out}** Outbound calls this month.")
-    st.progress(min(1.0, total_out / goal_out))
-    if total_out >= goal_out: st.success(f"✅ MISSION COMPLETE! Total: {total_out}")
-    elif total_out >= (goal_out * 0.5): st.info(f"🔵 ON TRACK: {total_out} / {goal_out} calls reached.")
-    else: st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    elapsed_days, total_days = month_progress(get_data_date())
+    st.caption(f"Month progress: day {elapsed_days:g} of {total_days:g} working days (Saturdays count as half a day).")
 
-    avg_ans = sum(st.session_state.master_data[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
-    goal_ans = 98.0
-    st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
-    st.subheader("🛡️ TEAM MISSION: The Perfect Guard")
-    st.write(f"Objective: Maintain a collective **{goal_ans}%** Answer Rate average.")
-    st.progress(avg_ans / 100.0)
-    if avg_ans >= goal_ans: st.success(f"✅ MISSION SECURE: Current average is {avg_ans:.1f}%")
-    elif avg_ans >= 95.0: st.warning(f"⚠️ WARNING: Average has dropped to {avg_ans:.1f}%")
-    else: st.error(f"❌ CRITICAL: Average is below safety threshold at {avg_ans:.1f}%")
-    st.markdown('</div>', unsafe_allow_html=True)
+    total_out = sum(md[n]["out"] for n in STAFF_NAMES)
+    with st.container(key="hud_bounty_out"):
+        st.subheader("⚔️ TEAM MISSION: Clear the Communications Jam")
+        st.write(f"Objective: Reach a collective **{GOAL_OUT}** Outbound calls this month.")
+        st.progress(min(1.0, total_out / GOAL_OUT))
+        if total_out >= GOAL_OUT: st.success(f"✅ MISSION COMPLETE! Total: {total_out}")
+        elif total_out >= (GOAL_OUT * 0.5): st.info(f"🔵 ON TRACK: {total_out} / {GOAL_OUT} calls reached.")
+        else: st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
+        if total_out < GOAL_OUT and total_days > 0:
+            pace_target = round(GOAL_OUT * elapsed_days / total_days)
+            diff = total_out - pace_target
+            verdict = f"{diff} ahead of pace 🚀" if diff >= 0 else f"{-diff} behind pace 🐢"
+            st.caption(f"Pace check: by now we'd want about **{pace_target}** – we're at **{total_out}** ({verdict}).")
 
-    total_awol = sum(st.session_state.master_data[n]["awol"] for n in STAFF_NAMES)
-    max_awol = 5.0
-    st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
-    st.subheader("🐌 TEAM MISSION: Stay in the Fight")
-    st.write(f"Objective: The entire team shares a **{int(max_awol)} minute** total AWOL pool.")
-    st.progress(min(1.0, total_awol / max_awol))
-    if total_awol <= max_awol: st.success(f"✅ STAMINA REMAINING: {total_awol}m used. Pool has {max_awol - total_awol:.1f}m left.")
-    else: st.error(f"❌ MISSION FAILED: Total AWOL is {total_awol}m ({total_awol - max_awol:.1f}m over limit).")
-    st.markdown('</div>', unsafe_allow_html=True)
+    avg_ans = sum(md[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
+    with st.container(key="hud_bounty_ans"):
+        st.subheader("🛡️ TEAM MISSION: The Perfect Guard")
+        st.write(f"Objective: Maintain a collective **{GOAL_ANS}%** Answer Rate average.")
+        st.progress(avg_ans / 100.0)
+        if avg_ans >= GOAL_ANS: st.success(f"✅ MISSION SECURE: Current average is {avg_ans:.1f}%")
+        elif avg_ans >= 95.0: st.warning(f"⚠️ WARNING: Average has dropped to {avg_ans:.1f}%")
+        else: st.error(f"❌ CRITICAL: Average is below safety threshold at {avg_ans:.1f}%")
 
-    sla_pct = float(st.session_state.master_data["team_stats"]["sla_pct"])
-    goal_sla = 92.5
-    st.markdown('<div class="bounty-card">', unsafe_allow_html=True)
-    st.subheader("📋 TEAM MISSION: Hold the Line on SLA")
-    st.write(f"Objective: Keep SD Tickets Within SLA at **{goal_sla}%** or above.")
-    scaled_sla_progress = min(1.0, max(0.0, (sla_pct - 80.0) / 20.0)) if sla_pct > 80.0 else 0.0
-    st.progress(scaled_sla_progress)
-    if sla_pct >= goal_sla: st.success(f"✅ SLA HOLDING: Currently at {sla_pct:.1f}% — target met.")
-    elif sla_pct >= 88.0: st.warning(f"⚠️ SLIPPING: SLA is at {sla_pct:.1f}% — push to reach {goal_sla}%.")
-    else: st.error(f"❌ SLA BREACH: Currently at {sla_pct:.1f}% — immediate action needed.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    total_awol = sum(md[n]["awol"] for n in STAFF_NAMES)
+    with st.container(key="hud_bounty_awol"):
+        st.subheader("🐌 TEAM MISSION: Stay in the Fight")
+        st.write(f"Objective: The entire team shares a **{int(MAX_AWOL)} minute** total AWOL pool.")
+        st.progress(min(1.0, total_awol / MAX_AWOL))
+        if total_awol <= MAX_AWOL: st.success(f"✅ STAMINA REMAINING: {total_awol}m used. Pool has {MAX_AWOL - total_awol:.1f}m left.")
+        else: st.error(f"❌ MISSION FAILED: Total AWOL is {total_awol}m ({total_awol - MAX_AWOL:.1f}m over limit).")
+
+    sla_pct = float(md["team_stats"]["sla_pct"])
+    with st.container(key="hud_bounty_sla"):
+        st.subheader("📋 TEAM MISSION: Hold the Line on SLA")
+        st.write(f"Objective: Keep SD Tickets Within SLA at **{GOAL_SLA}%** or above.")
+        scaled_sla_progress = min(1.0, max(0.0, (sla_pct - 80.0) / 20.0)) if sla_pct > 80.0 else 0.0
+        st.progress(scaled_sla_progress)
+        if sla_pct >= GOAL_SLA: st.success(f"✅ SLA HOLDING: Currently at {sla_pct:.1f}% — target met.")
+        elif sla_pct >= 88.0: st.warning(f"⚠️ SLIPPING: SLA is at {sla_pct:.1f}% — push to reach {GOAL_SLA}%.")
+        else: st.error(f"❌ SLA BREACH: Currently at {sla_pct:.1f}% — immediate action needed.")
 
 # =============================================================================
-# TAB 4: SIDE QUEST CHRONICLES BOARD
+# TAB: SIDE QUEST CHRONICLES BOARD
 # =============================================================================
-with tabs[3]:
+with tab_quests:
     st.title("🐉 Tavern Side Quests Bulletin")
     st.write("Track active offline operations and view historical rewards logged by the team.")
-    
+
     sq_col1, sq_col2 = st.columns(2)
-    
+
     with sq_col1:
         st.subheader("📌 Currently Dispatched on Side Quests")
         active_found = False
         for name in STAFF_NAMES:
-            aq = st.session_state.master_data[name].get("active_quest", {})
+            aq = md[name].get("active_quest", {})
             if aq and aq.get("title"):
                 active_found = True
                 st.markdown(f"""
                     <div class="quest-card" style="border-left: 5px solid #00ffcc;">
                         <span style="float:right; color:#00ffcc; font-weight:bold;">⏳ ACTIVE</span>
-                        <h4 style="margin:0; color:#fff;">{aq['title']}</h4>
+                        <h4 style="margin:0; color:#fff;">{html.escape(aq['title'])}</h4>
                         <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Operative: <strong>{name}</strong></p>
                         <p style="margin:4px 0; font-size:0.85rem;">Allocated Duration: <strong>{aq['minutes']} mins</strong></p>
-                        <small style="color:#666;">Commenced: {aq['timestamp']}</small>
+                        <small style="color:#666;">Commenced: {html.escape(str(aq.get('timestamp', '')))}</small>
                     </div>
                 """, unsafe_allow_html=True)
         if not active_found:
             st.info("All operatives are currently deployed on the frontline desk.")
-            
+
     with sq_col2:
         st.subheader("✅ Completed Quest Chronicles Log")
+        quest_year = get_data_date().year
         completed_quests_list = []
         for name in STAFF_NAMES:
-            for q in st.session_state.master_data[name].get("side_quests", []):
+            for q in md[name].get("side_quests", []):
                 completed_quests_list.append({
-                    "time_sort": q.get("timestamp", ""),
+                    "time_sort": parse_quest_time(q, quest_year),
                     "html": f"""
                         <div class="quest-card" style="border-left: 5px solid #ffcc00;">
                             <span style="float:right; color:#ffcc00; font-weight:bold; text-align:right;">
                                 💠 +{q['simulated_exp']} EXP<br>💰 +{q['gil_reward']} GIL
                             </span>
-                            <h4 style="margin:0; color:#fff;">{q['title']}</h4>
+                            <h4 style="margin:0; color:#fff;">{html.escape(q['title'])}</h4>
                             <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Completed by: <strong>{name}</strong></p>
                             <p style="margin:4px 0; font-size:0.85rem;">Time spent compensating: <strong>{q['minutes']} mins</strong></p>
-                            <small style="color:#666;">Logged: {q['timestamp']}</small>
+                            <small style="color:#666;">Logged: {html.escape(str(q.get('timestamp', '')))}</small>
                         </div>
                     """
                 })
         if completed_quests_list:
-            for q_card in reversed(completed_quests_list):
+            for q_card in sorted(completed_quests_list, key=lambda x: x["time_sort"], reverse=True):
                 st.markdown(q_card["html"], unsafe_allow_html=True)
         else:
             st.write("No historical side quests recorded for this tactical frame.")
 
 # =============================================================================
-# TAB 5: DAILY SNAPSHOT HUD
+# TAB: DAILY SNAPSHOT HUD
 # =============================================================================
-with tabs[4]:
+with tab_snapshot:
     st.title("⚡ Daily Tactical Snapshot Node")
-    st.subheader("📸 Teams Live Output Panel Feed")
-    
-    stack_cols = st.columns(2)
-    for idx, name in enumerate(STAFF_NAMES):
-        active_snap = st.session_state.daily_snapshot_data[name]
-        avatar_url = AVATARS.get(name, "")
-        with stack_cols[idx % 2]:
-            st.markdown(f"""
-                <div style="background: rgba(20, 20, 20, 0.88); border: 1px solid rgba(0, 255, 204, 0.55); border-radius: 16px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.95); margin-bottom: 25px; min-height: 230px;">
-                    <div style="display: flex; align-items: center; margin-bottom: 22px;">
-                        <img src="{avatar_url}" style="width: 85px; height: 85px; border-radius: 8px; border: 2px solid #00ffcc; box-shadow: 0 0 12px rgba(0,255,204,0.5); object-fit: contain; background-color: rgba(0,0,0,0.5); margin-right: 22px;">
-                        <div>
-                            <h2 style="color: #ffffff; margin: 0; padding: 0; font-size: 1.75rem; font-weight: bold; text-shadow: 2px 2px 4px #000; letter-spacing: 0.5px;">{name}</h2>
-                        </div>
-                    </div>
-                    <table style="width: 100%; border-collapse: collapse; text-align: center; color: #ffffff; font-size: 0.9rem;">
-                        <thead>
-                            <tr style="background: rgba(0, 255, 204, 0.18); color: #00ffcc; border-bottom: 3px solid rgba(0, 255, 204, 0.4); font-weight: bold;">
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Calls Ans</th>
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Ans %</th>
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Outbound</th>
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">SD Opened</th>
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">SD Closed</th>
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Avg Ans T</th>
-                                <th style="padding: 8px; border: 1px solid rgba(255,255,255,0.12);">Avg Call T</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style="font-weight: bold; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.4); font-size: 1.15rem;">
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['answered']}</td>
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['pct']}</td>
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12);">{active_snap['outbound']}</td>
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #ff4b4b;">{active_snap['open']}</td>
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap['close']}</td>
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap.get('avg_ans_time', '00:00:15')}</td>
-                                <td style="padding: 12px; border: 1px solid rgba(255,255,255,0.12); color: #00ffcc;">{active_snap.get('avg_call_time', '00:03:30')}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            """, unsafe_allow_html=True)
-            
-    st.divider()
+    st.caption("In-day numbers only – these are not saved and reset when the page is refreshed. Press **Copy image** to paste into Teams.")
+    snap_html, snap_height = build_snapshot_html()
+    capture_component(snap_html, SNAP_CSS, snap_height,
+                      f"midgar-snapshot-{now_uk().strftime('%Y-%m-%d-%H%M')}.png")
 
     with st.expander("🛠️ Open Operational Data Entry Terminal", expanded=False):
-        st.write("Mass multi-row entry console system.")
-        new_answered, new_pct, new_outbound, new_open, new_close, new_avg_ans, new_avg_call = {}, {}, {}, {}, {}, {}, {}
-        for name in STAFF_NAMES:
-            current_vals = st.session_state.daily_snapshot_data[name]
-            r_col0, r_col1, r_col2, r_col3, r_col4, r_col5, r_col6, r_col7 = st.columns([1.5, 1, 1, 1, 1, 1, 1, 1])
-            with r_col0: st.markdown(f"<div style='padding-top:25px;'><strong>👤 {name}</strong></div>", unsafe_allow_html=True)
-            with r_col1: new_answered[name] = st.number_input("Calls Ans", min_value=0, value=int(current_vals["answered"]), step=1, key=f"ans_{name}")
-            with r_col2: new_pct[name] = st.text_input("Answer %", value=str(current_vals["pct"]), key=f"pct_{name}")
-            with r_col3: new_outbound[name] = st.number_input("Outbound", min_value=0, value=int(current_vals["outbound"]), step=1, key=f"out_{name}")
-            with r_col4: new_open[name] = st.number_input("SD Opened", min_value=0, value=int(current_vals["open"]), step=1, key=f"open_{name}")
-            with r_col5: new_close[name] = st.number_input("SD Closed", min_value=0, value=int(current_vals["close"]), step=1, key=f"close_{name}")
-            with r_col6: new_avg_ans[name] = st.text_input("Avg Ans Time", value=str(current_vals.get("avg_ans_time", "00:00:15")), key=f"avg_ans_snap_{name}")
-            with r_col7: new_avg_call[name] = st.text_input("Avg Call Time", value=str(current_vals.get("avg_call_time", "00:03:30")), key=f"avg_call_snap_{name}")
-                
+        st.write("Edit any cell, then commit once.")
+        snaps = st.session_state.daily_snapshot_data
+        snap_df = pd.DataFrame(
+            [{
+                "Operative": n,
+                "Calls Ans": int(snaps[n]["answered"]),
+                "Ans %": float(str(snaps[n]["pct"]).rstrip("%") or 100),
+                "Outbound": int(snaps[n]["outbound"]),
+                "SD Opened": int(snaps[n]["open"]),
+                "SD Closed": int(snaps[n]["close"]),
+            } for n in STAFF_NAMES]
+        ).set_index("Operative")
+        edited_snap = st.data_editor(
+            snap_df,
+            key=f"snap_editor_{st.session_state.editor_ver}",
+            width="stretch",
+            num_rows="fixed",
+            column_config={
+                "Calls Ans": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "Ans %": st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.1, format="%.1f%%"),
+                "Outbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "SD Opened": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "SD Closed": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+            },
+        )
         if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
-            for name in STAFF_NAMES:
-                st.session_state.daily_snapshot_data[name].update({
-                    "answered": new_answered[name], "pct": new_pct[name] if new_pct[name] else "100%",
-                    "outbound": new_outbound[name], "open": new_open[name], "close": new_close[name],
-                    "avg_ans_time": new_avg_ans[name] if new_avg_ans[name] else "00:00:15",
-                    "avg_call_time": new_avg_call[name] if new_avg_call[name] else "00:03:30"
+            for n, row in edited_snap.iterrows():
+                st.session_state.daily_snapshot_data[n].update({
+                    "answered": int(row["Calls Ans"] or 0),
+                    "pct": float(row["Ans %"]) if pd.notna(row["Ans %"]) else 100.0,
+                    "outbound": int(row["Outbound"] or 0),
+                    "open": int(row["SD Opened"] or 0),
+                    "close": int(row["SD Closed"] or 0),
                 })
-            st.success("All snapshots preserved!")
+            st.session_state.snapshot_stamp = f"As of {now_uk().strftime('%a %d %b · %H:%M')}"
+            st.session_state.editor_ver += 1
             st.rerun()
-        
+
     st.divider()
     st.subheader("📋 Collective Daily Snapshot Overview")
     daily_rows_matrix = []
     for name in STAFF_NAMES:
         snap_item = st.session_state.daily_snapshot_data[name]
-        daily_exp = snap_item["answered"] + snap_item["outbound"] + snap_item["open"] + snap_item["close"]
-        weight = SHIFT_WEIGHTS.get(name, 1.0)
-        projected_gil = round((daily_exp / weight) ** 0.9) if daily_exp > 0 else 0
         daily_rows_matrix.append({
-            "Operative": name, "Calls Answered": snap_item["answered"], "Answer Rate": snap_item["pct"],
+            "Operative": name, "Calls Answered": snap_item["answered"], "Answer Rate": fmt_pct(snap_item["pct"]),
             "Outbound Calls": snap_item["outbound"], "SD Opened": snap_item["open"], "SD Closed": snap_item["close"],
-            "Avg Answer Time": snap_item.get("avg_ans_time", "00:00:15"),
-            "Avg Time in Call": snap_item.get("avg_call_time", "00:03:30"),
-            "Projected Daily GIL": f"💰 {projected_gil}"
+            "Projected Daily GIL": f"💰 {snapshot_gil(name, snap_item)}"
         })
     st.table(pd.DataFrame(daily_rows_matrix))
 
 # =============================================================================
-# TAB 6: TACTICAL OVERVIEW
+# TAB: TACTICAL OVERVIEW
 # =============================================================================
-with tabs[5]:
+with tab_overview:
     st.title("📊 Tactical Command Overview")
+    st.markdown(f"<div class='data-stamp'>{html.escape(data_stamp_text())}</div>", unsafe_allow_html=True)
     st.subheader("📋 MTD Raw Stats")
     data_rows = []
     for name in STAFF_NAMES:
-        s = st.session_state.master_data[name]
+        s = md[name]
         res = get_stats(s)
         data_rows.append({
             "Operative": name, "Inbound": s["in"], "Outbound": s["out"],
             "SD Opened": s["open"], "SD Closed": s["close"], "Ans Rate": f"{s['ans']}%",
-            "Avg Ans Time": s.get("avg_ans_time", "00:00:15"),
-            "Avg Time in Call": s.get("avg_call_time", "00:03:30"),
             "AWOL": f"{s['awol']}m", "Wallet": f"{res['GIL']} GIL"
         })
     st.table(pd.DataFrame(data_rows))
@@ -843,15 +1307,15 @@ with tabs[5]:
     st.divider()
     st.subheader("➕ MTD Team Totals")
     totals_row = {
-        "Total Inbound": sum(st.session_state.master_data[n]["in"] for n in STAFF_NAMES),
-        "Total Outbound": sum(st.session_state.master_data[n]["out"] for n in STAFF_NAMES),
-        "Total SD Opened": sum(st.session_state.master_data[n]["open"] for n in STAFF_NAMES),
-        "Total SD Closed": sum(st.session_state.master_data[n]["close"] for n in STAFF_NAMES),
+        "Total Inbound": sum(md[n]["in"] for n in STAFF_NAMES),
+        "Total Outbound": sum(md[n]["out"] for n in STAFF_NAMES),
+        "Total SD Opened": sum(md[n]["open"] for n in STAFF_NAMES),
+        "Total SD Closed": sum(md[n]["close"] for n in STAFF_NAMES),
     }
     st.table(pd.DataFrame([totals_row]))
 
     st.divider()
-    ts = st.session_state.master_data["team_stats"]
+    ts = md["team_stats"]
     st.subheader("🌐 Team Performance Metrics")
     team_metrics_row = {
         "Overall Success %": f"{ts['success_pct']}%", "SD Tickets Within SLA %": f"{ts['sla_pct']}%",
@@ -863,7 +1327,7 @@ with tabs[5]:
     st.subheader("📅 Weighted Daily Averages")
     avg_rows = []
     for name in STAFF_NAMES:
-        s = st.session_state.master_data[name]
+        s = md[name]
         avgs = get_daily_averages(name, s)
         days = s.get("days_worked", 0)
         shift_weight = SHIFT_WEIGHTS.get(name, 1.0)
@@ -882,16 +1346,15 @@ with tabs[5]:
     h_col4, h_col5, h_col6 = st.columns(3)
     honors_columns = [h_col1, h_col2, h_col3, h_col4, h_col5, h_col6]
     for idx, (title, key, is_high) in enumerate(HONORS_MAP):
-        target_col = honors_columns[idx]
         winners_list = calculate_winners(key, STAFF_NAMES, is_high)
-        winners_str = ", ".join(winners_list) if winners_list else "None"
-        with target_col:
+        winners_str = ", ".join(winners_list) if winners_list else "Up for grabs"
+        with honors_columns[idx]:
             st.markdown(f'<div class="award-card"><div style="color:#00ffcc; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div><div>{winners_str}</div></div>', unsafe_allow_html=True)
 
 # =============================================================================
-# TAB 7: PERFORMANCE CHARTS
+# TAB: PERFORMANCE CHARTS
 # =============================================================================
-with tabs[6]:
+with tab_charts:
     st.title("📈 Operative Performance Charts")
     st.write("Visual breakdown of MTD totals and weighted daily averages across all operatives.")
 
@@ -928,78 +1391,150 @@ with tabs[6]:
         return fig
 
     st.subheader("📊 Month-To-Date Totals")
-    mtd_in    = [st.session_state.master_data[n]["in"]    for n in STAFF_NAMES]
-    mtd_out   = [st.session_state.master_data[n]["out"]   for n in STAFF_NAMES]
-    mtd_open  = [st.session_state.master_data[n]["open"]  for n in STAFF_NAMES]
-    mtd_close = [st.session_state.master_data[n]["close"] for n in STAFF_NAMES]
+    mtd_in    = [md[n]["in"]    for n in STAFF_NAMES]
+    mtd_out   = [md[n]["out"]   for n in STAFF_NAMES]
+    mtd_open  = [md[n]["open"]  for n in STAFF_NAMES]
+    mtd_close = [md[n]["close"] for n in STAFF_NAMES]
 
-    st.plotly_chart(make_bar("Inbound Calls — MTD", mtd_in, "#00ffcc", "Calls"), use_container_width=True, config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Outbound Calls — MTD", mtd_out, "#0099ff", "Calls"), use_container_width=True, config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Tickets Opened — MTD", mtd_open, "#ff4b4b", "Tickets"), use_container_width=True, config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Tickets Closed — MTD", mtd_close, "#ffcc00", "Tickets"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Inbound Calls — MTD", mtd_in, "#00ffcc", "Calls"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Outbound Calls — MTD", mtd_out, "#0099ff", "Calls"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Tickets Opened — MTD", mtd_open, "#ff4b4b", "Tickets"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Tickets Closed — MTD", mtd_close, "#ffcc00", "Tickets"), width="stretch", config={"displayModeBar": False})
 
     st.divider()
     st.subheader("📅 Weighted Daily Averages")
 
     avg_in_vals, avg_out_vals, avg_open_vals, avg_close_vals = [], [], [], []
     for name in STAFF_NAMES:
-        avgs = get_daily_averages(name, st.session_state.master_data[name])
+        avgs = get_daily_averages(name, md[name])
         avg_in_vals.append(avgs["avg_in"]    if avgs["avg_in"]    is not None else 0)
         avg_out_vals.append(avgs["avg_out"]  if avgs["avg_out"]   is not None else 0)
         avg_open_vals.append(avgs["avg_open"]  if avgs["avg_open"]  is not None else 0)
         avg_close_vals.append(avgs["avg_close"] if avgs["avg_close"] is not None else 0)
 
-    st.plotly_chart(make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#00ffcc", "Calls/day"), use_container_width=True, config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#0099ff", "Calls/day"), use_container_width=True, config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Avg Tickets Opened — Daily (Weighted)", avg_open_vals, "#ff4b4b", "Tickets/day"), use_container_width=True, config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ffcc00", "Tickets/day"), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#00ffcc", "Calls/day"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#0099ff", "Calls/day"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Tickets Opened — Daily (Weighted)", avg_open_vals, "#ff4b4b", "Tickets/day"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ffcc00", "Tickets/day"), width="stretch", config={"displayModeBar": False})
 
 
 # =============================================================================
-# TAB 8: PARTY SPIRIT — COLLECTIVE TEAM VIEW
+# TAB: TRENDS (built from the daily history saved with each morning update)
 # =============================================================================
-with tabs[7]:
+with tab_trends:
+    st.title("📉 Month Trends")
+    st.write("Built from each morning update you commit in Admin. One point per update.")
+    hist = md.get("history_log", {})
+    hist_dates = sorted(hist)
+
+    if len(hist_dates) < 2:
+        st.info("Trends appear after your second morning update this month – check back tomorrow! 🌱")
+    else:
+        rows = []
+        for i in range(1, len(hist_dates)):
+            prev, cur = hist[hist_dates[i - 1]], hist[hist_dates[i]]
+            label = fmt_day(date.fromisoformat(hist_dates[i]))
+            for n in STAFF_NAMES:
+                if n not in cur:
+                    continue
+                c = cur[n]
+                p = prev.get(n, [0] * len(HIST_FIELDS))
+                d_in, d_out, d_open, d_close = (max(0, c[j] - p[j]) for j in range(4))
+                rows.append({"Date": label, "sort": hist_dates[i], "Operative": n.split(" ")[0],
+                             "Inbound": d_in, "Outbound": d_out, "Opened": d_open, "Closed": d_close,
+                             "Total": d_in + d_out + d_open + d_close})
+        tdf = pd.DataFrame(rows)
+
+        st.subheader("📊 Team output per update")
+        team_daily = tdf.groupby(["sort", "Date"], as_index=False)[["Inbound", "Outbound", "Opened", "Closed"]].sum().sort_values("sort")
+        fig_td = go.Figure()
+        for cat, colr in zip(["Inbound", "Outbound", "Opened", "Closed"], ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00"]):
+            fig_td.add_trace(go.Bar(name=cat, x=team_daily["Date"], y=team_daily[cat], marker_color=colr, opacity=0.88))
+        fig_td.update_layout(barmode="stack")
+        st.plotly_chart(style_fig(fig_td, 320), width="stretch", config={"displayModeBar": False})
+        st.caption("Gaps such as weekends roll into the next update's bar.")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("🏁 EXP Race")
+            fig_race = go.Figure()
+            for idx, n in enumerate(STAFF_NAMES):
+                xs, ys = [], []
+                for dkey in hist_dates:
+                    if n in hist[dkey]:
+                        xs.append(fmt_day(date.fromisoformat(dkey)))
+                        ys.append(hist[dkey][n][HIST_FIELDS.index("exp")])
+                fig_race.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name=n.split(" ")[0],
+                                              line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)], width=3)))
+            st.plotly_chart(style_fig(fig_race, 340), width="stretch", config={"displayModeBar": False})
+        with c2:
+            st.subheader("🛡️ Answer Rate Trend")
+            fig_ans = go.Figure()
+            for idx, n in enumerate(STAFF_NAMES):
+                xs, ys = [], []
+                for dkey in hist_dates:
+                    if n in hist[dkey]:
+                        xs.append(fmt_day(date.fromisoformat(dkey)))
+                        ys.append(hist[dkey][n][HIST_FIELDS.index("ans")])
+                fig_ans.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name=n.split(" ")[0],
+                                             line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)], width=3)))
+            fig_ans.add_hline(y=GOAL_ANS, line_dash="dot", line_color="#ffcc00")
+            style_fig(fig_ans, 340)
+            lowest_ans = min((hist[dk][n][HIST_FIELDS.index("ans")] for dk in hist_dates for n in hist[dk]), default=90)
+            fig_ans.update_yaxes(range=[min(90, lowest_ans - 1), 100.5])
+            st.plotly_chart(fig_ans, width="stretch", config={"displayModeBar": False})
+
+        st.subheader("🏆 Best Update This Month")
+        best_rows = []
+        for n in STAFF_NAMES:
+            short = n.split(" ")[0]
+            sub = tdf[tdf["Operative"] == short]
+            if sub.empty or sub["Total"].max() <= 0:
+                continue
+            top = sub.loc[sub["Total"].idxmax()]
+            best_rows.append({"Operative": n, "Best Update": top["Date"], "Calls + Tickets": int(top["Total"])})
+        if best_rows:
+            st.table(pd.DataFrame(best_rows))
+        team_best = tdf.groupby("Date")["Total"].sum()
+        if not team_best.empty and team_best.max() > 0:
+            st.success(f"🌟 Team best so far: **{int(team_best.max())}** calls + tickets on **{team_best.idxmax()}**")
+
+
+# =============================================================================
+# TAB: PARTY SPIRIT — COLLECTIVE TEAM VIEW
+# =============================================================================
+with tab_spirit:
     st.title("🌟 Party Spirit — Avalanche Collective Status")
     st.write("One view. One team. How are we doing together this month?")
 
-    # ── Shared calculations ───────────────────────────────────────────────────
-    all_res = {n: get_stats(st.session_state.master_data[n]) for n in STAFF_NAMES}
+    ov = team_overview()
+    all_res = ov["all_res"]
 
-    total_team_exp   = sum(r["Raw_EXP"] for r in all_res.values())
+    total_team_exp   = ov["total_exp"]
     total_team_gil   = sum(r["GIL"] for r in all_res.values())
-    total_team_lvls  = sum(r["Level"] for r in all_res.values())
-    avg_team_lvl     = round(total_team_lvls / len(STAFF_NAMES), 1) if STAFF_NAMES else 0
+    avg_team_lvl     = ov["avg_lvl"]
 
-    total_in    = sum(st.session_state.master_data[n]["in"]    for n in STAFF_NAMES)
-    total_out   = sum(st.session_state.master_data[n]["out"]   for n in STAFF_NAMES)
-    total_open  = sum(st.session_state.master_data[n]["open"]  for n in STAFF_NAMES)
-    total_close = sum(st.session_state.master_data[n]["close"] for n in STAFF_NAMES)
-    total_awol  = sum(st.session_state.master_data[n]["awol"]  for n in STAFF_NAMES)
-    avg_ans     = sum(st.session_state.master_data[n]["ans"]   for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
-    sla_val     = float(st.session_state.master_data["team_stats"]["sla_pct"])
+    total_in    = sum(md[n]["in"]    for n in STAFF_NAMES)
+    total_out   = ov["total_out"]
+    total_open  = sum(md[n]["open"]  for n in STAFF_NAMES)
+    total_close = sum(md[n]["close"] for n in STAFF_NAMES)
+    total_awol  = ov["total_awol"]
+    sla_val     = ov["sla"]
+    missions_hit = ov["missions_hit"]
+    team_title, team_flavour = ov["title"], ov["flavour"]
 
-    # Team score: missions hit out of 4
-    missions_hit = 0
-    if total_out   >= 500:   missions_hit += 1
-    if avg_ans     >= 98.0:  missions_hit += 1
-    if total_awol  <= 5.0:   missions_hit += 1
-    if sla_val     >= 92.5:  missions_hit += 1
-
-    # Team title based on missions hit + avg level
-    combined_score = missions_hit + int(avg_team_lvl / 3)
-    team_title_idx = min(combined_score, len(TEAM_TITLES) - 1)
-    team_title, team_flavour = TEAM_TITLES[team_title_idx]
-
-    # Party HP — average of individual HP percentages
     avg_hp_pct = sum(r["HP_Pct"] for r in all_res.values()) / len(all_res) if all_res else 0
-    if avg_hp_pct > 0.75:   party_hp_color = "#00ffcc"
-    elif avg_hp_pct > 0.40: party_hp_color = "#ffcc00"
-    else:                    party_hp_color = "#ff4b4b"
+    party_hp_color = hp_colour(avg_hp_pct)
 
-    # Mako Level — shared EXP pool scaled to a 0-100 gauge
     mako_level = min(100, round((total_team_exp / 3000) * 100))
 
     # ── SECTION 1: Team identity banner ──────────────────────────────────────
+    mission_chips = "".join(
+        f'<span style="background:rgba(0,255,204,0.15);border:1px solid rgba(0,255,204,0.5);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#00ffcc;">✅ {lbl}</span>'
+        if hit else
+        f'<span style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#555;">⬜ {lbl}</span>'
+        for lbl, hit, _ in ov["missions"]
+    )
     st.markdown(f"""
         <div style="background: linear-gradient(135deg, rgba(0,255,204,0.08) 0%, rgba(0,100,80,0.15) 100%);
                     border: 1px solid rgba(0,255,204,0.45); border-radius: 18px;
@@ -1010,41 +1545,22 @@ with tabs[7]:
             </div>
             <div style="font-size: 0.9rem; color: #bbb; margin-top: 10px; font-style: italic;">{team_flavour}</div>
             <div style="margin-top: 18px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
-                {"".join([f'<span style="background:rgba(0,255,204,0.15);border:1px solid rgba(0,255,204,0.5);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#00ffcc;">✅ Mission {i+1}</span>' if i < missions_hit else f'<span style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#555;">⬜ Mission {i+1}</span>' for i in range(4)])}
+                {mission_chips}
             </div>
         </div>
     """, unsafe_allow_html=True)
 
     # ── SECTION 2: Big stat row ───────────────────────────────────────────────
     s1, s2, s3, s4 = st.columns(4)
-    with s1:
-        st.markdown(f"""
-            <div class="spirit-card">
-                <span class="spirit-stat-big">{total_team_exp:,}</span>
-                <span class="spirit-stat-label">💠 Total Party EXP</span>
-            </div>
-        """, unsafe_allow_html=True)
-    with s2:
-        st.markdown(f"""
-            <div class="spirit-card">
-                <span class="spirit-stat-big">{total_team_gil:,}</span>
-                <span class="spirit-stat-label">💰 Total Party GIL</span>
-            </div>
-        """, unsafe_allow_html=True)
-    with s3:
-        st.markdown(f"""
-            <div class="spirit-card">
-                <span class="spirit-stat-big">{avg_team_lvl}</span>
-                <span class="spirit-stat-label">⚔️ Avg Operative Level</span>
-            </div>
-        """, unsafe_allow_html=True)
-    with s4:
-        st.markdown(f"""
-            <div class="spirit-card">
-                <span class="spirit-stat-big">{missions_hit}/4</span>
-                <span class="spirit-stat-label">🎯 Missions Achieved</span>
-            </div>
-        """, unsafe_allow_html=True)
+    for col, big, lbl in [(s1, f"{total_team_exp:,}", "💠 Total Party EXP"), (s2, f"{total_team_gil:,}", "💰 Total Party GIL"),
+                          (s3, f"{avg_team_lvl}", "⚔️ Avg Operative Level"), (s4, f"{missions_hit}/4", "🎯 Missions Achieved")]:
+        with col:
+            st.markdown(f"""
+                <div class="spirit-card">
+                    <span class="spirit-stat-big">{big}</span>
+                    <span class="spirit-stat-label">{lbl}</span>
+                </div>
+            """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1071,6 +1587,12 @@ with tabs[7]:
 
     with g2:
         st.markdown("#### ❤️ Party Vitality Reading")
+        pill_html = ""
+        for name in STAFF_NAMES:
+            r = all_res[name]
+            pc = hp_colour(r["HP_Pct"])
+            short = name.split(" ")[0]
+            pill_html += f'<span style="background:rgba(0,0,0,0.5);border:1px solid {pc};border-radius:20px;padding:3px 10px;font-size:0.72rem;color:{pc};margin:2px;display:inline-block;">{short} {round(r["HP_Pct"]*100)}%</span>'
         st.markdown(f"""
             <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,204,0.25);
                         border-radius: 12px; padding: 20px; margin-bottom: 6px;">
@@ -1081,18 +1603,9 @@ with tabs[7]:
                 <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(0,255,204,0.2);">
                     <div style="background-color: {party_hp_color}; width: {round(avg_hp_pct*100)}%; height: 100%;"></div>
                 </div>
-                <div style="margin-top: 12px;">
+                <div style="margin-top: 12px;">{pill_html}</div>
+            </div>
         """, unsafe_allow_html=True)
-        # Individual HP mini pills
-        pill_html = ""
-        for name in STAFF_NAMES:
-            r = all_res[name]
-            if r["HP_Pct"] > 0.75: pc = "#00ffcc"
-            elif r["HP_Pct"] > 0.40: pc = "#ffcc00"
-            else: pc = "#ff4b4b"
-            short = name.split(" ")[0]
-            pill_html += f'<span style="background:rgba(0,0,0,0.5);border:1px solid {pc};border-radius:20px;padding:3px 10px;font-size:0.72rem;color:{pc};margin:2px;display:inline-block;">{short} {round(r["HP_Pct"]*100)}%</span>'
-        st.markdown(f"{pill_html}</div></div>", unsafe_allow_html=True)
 
     st.divider()
 
@@ -1109,22 +1622,12 @@ with tabs[7]:
         fig_stack.add_trace(go.Bar(
             name=cat,
             x=[n.split(" ")[0] for n in STAFF_NAMES],
-            y=[st.session_state.master_data[n][keys[ki]] for n in STAFF_NAMES],
+            y=[md[n][keys[ki]] for n in STAFF_NAMES],
             marker_color=col,
             opacity=0.88
         ))
-
-    fig_stack.update_layout(
-        barmode="stack",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=20, b=10),
-        height=320,
-        legend=dict(font=dict(color="#aaa", family="Courier New"), bgcolor="rgba(0,0,0,0)"),
-        xaxis=dict(tickfont=dict(color="#00ffcc", family="Courier New"), gridcolor="rgba(0,255,204,0.06)", title=None),
-        yaxis=dict(tickfont=dict(color="#aaa", family="Courier New"), gridcolor="rgba(0,255,204,0.08)", title=None)
-    )
-    st.plotly_chart(fig_stack, use_container_width=True, config={"displayModeBar": False})
+    fig_stack.update_layout(barmode="stack")
+    st.plotly_chart(style_fig(fig_stack, 320), width="stretch", config={"displayModeBar": False})
 
     st.divider()
 
@@ -1134,9 +1637,8 @@ with tabs[7]:
 
     signals_found = False
 
-    # Check answer rate
     for name in STAFF_NAMES:
-        ans = st.session_state.master_data[name]["ans"]
+        ans = md[name]["ans"]
         short = name.split(" ")[0]
         if ans < 95:
             signals_found = True
@@ -1144,7 +1646,7 @@ with tabs[7]:
                 <div class="signal-card-crit">
                     <strong style="color:#ff4b4b;">📞 Comms Under Pressure</strong>
                     <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                        {short}'s answer rate has dipped to <strong style="color:#ff4b4b;">{ans}%</strong>. 
+                        {short}'s answer rate has dipped to <strong style="color:#ff4b4b;">{ans}%</strong>.
                         The team may be able to help cover volume or check in.
                     </p>
                 </div>
@@ -1155,13 +1657,12 @@ with tabs[7]:
                 <div class="signal-card-warn">
                     <strong style="color:#ffcc00;">📞 Comms Slightly Stretched</strong>
                     <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                        {short}'s answer rate is at <strong style="color:#ffcc00;">{ans}%</strong>. 
+                        {short}'s answer rate is at <strong style="color:#ffcc00;">{ans}%</strong>.
                         Worth keeping an eye on as the month progresses.
                     </p>
                 </div>
             """, unsafe_allow_html=True)
 
-    # Check HP
     for name in STAFF_NAMES:
         r = all_res[name]
         short = name.split(" ")[0]
@@ -1186,14 +1687,13 @@ with tabs[7]:
                 </div>
             """, unsafe_allow_html=True)
 
-    # AWOL pool
-    if total_awol > 5:
+    if total_awol > MAX_AWOL:
         signals_found = True
         st.markdown(f"""
             <div class="signal-card-crit">
                 <strong style="color:#ff4b4b;">⏱️ AWOL Pool Exceeded</strong>
                 <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                    The team has used <strong style="color:#ff4b4b;">{total_awol} minutes</strong> of AWOL time against a 5-minute pool. 
+                    The team has used <strong style="color:#ff4b4b;">{total_awol} minutes</strong> of AWOL time against a {MAX_AWOL:g}-minute pool.
                     Collective focus will help bring this back on track.
                 </p>
             </div>
@@ -1204,24 +1704,23 @@ with tabs[7]:
             <div class="signal-card-warn">
                 <strong style="color:#ffcc00;">⏱️ AWOL Pool Thinning</strong>
                 <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                    {total_awol} of 5 AWOL minutes used. Only {5 - total_awol:.1f} minutes remaining in the shared pool.
+                    {total_awol} of {MAX_AWOL:g} AWOL minutes used. Only {MAX_AWOL - total_awol:.1f} minutes remaining in the shared pool.
                 </p>
             </div>
         """, unsafe_allow_html=True)
 
-    # SLA
-    if sla_val > 0 and sla_val < 88:
+    if 0 < sla_val < 88:
         signals_found = True
         st.markdown(f"""
             <div class="signal-card-crit">
                 <strong style="color:#ff4b4b;">📋 SLA Needs Urgent Attention</strong>
                 <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                    SLA is currently at <strong style="color:#ff4b4b;">{sla_val:.1f}%</strong> against a 92.5% target. 
+                    SLA is currently at <strong style="color:#ff4b4b;">{sla_val:.1f}%</strong> against a {GOAL_SLA}% target.
                     Ticket prioritisation across the team will make the biggest difference.
                 </p>
             </div>
         """, unsafe_allow_html=True)
-    elif sla_val > 0 and sla_val < 92.5:
+    elif 0 < sla_val < GOAL_SLA:
         signals_found = True
         st.markdown(f"""
             <div class="signal-card-warn">
@@ -1244,14 +1743,14 @@ with tabs[7]:
 
 
 # =============================================================================
-# TAB 9: MAKO VOLUME HEATMAP
+# TAB: MAKO VOLUME HEATMAP
 # =============================================================================
-with tabs[8]:
+with tab_heat:
     st.title("🔥 Mako Reactor Traffic Flow")
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
-    v_stats = st.session_state.master_data["volume_stats"]
+    v_stats = md["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
-    
+
     st.subheader("📊 Mako core Traffic Surge graph")
     df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
     fig = px.area(df_vol, x="Time Slot", y="Call Volume", color_discrete_sequence=["rgba(0, 255, 204, 0.45)"])
@@ -1262,33 +1761,33 @@ with tabs[8]:
         yaxis=dict(showgrid=True, gridcolor="rgba(0, 255, 204, 0.08)", tickfont=dict(color="#00ffcc", family="Courier New"), title=None)
     )
     fig.update_traces(line=dict(color="rgba(0, 255, 204, 1)", width=3), hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>")
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    
+    st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
+
     st.divider()
     st.subheader("📊 Global Outcome Percentages")
-    o_stats = st.session_state.master_data["outcome_stats"]
+    o_stats = md["outcome_stats"]
     st.table(pd.DataFrame([o_stats], columns=OUTCOME_KEYS))
 
 # =============================================================================
-# TAB 10: WALL MARKET (SHOP)
+# TAB: WALL MARKET (SHOP)
 # =============================================================================
-with tabs[9]:
+with tab_shop:
     st.title("💰 Wall Market Item Shop")
     shop_ui_col1, shop_ui_col2 = st.columns([1, 2])
-    
+
     with shop_ui_col1:
         current_buyer = st.selectbox("Who is shopping?", STAFF_NAMES)
         selected_perk = st.selectbox("Select Perk", [f"{k} ({v} GIL)" for k, v in SHOP_ITEMS.items()])
         perk_name = selected_perk.split(" (")[0]
         perk_price = SHOP_ITEMS[perk_name]
-        buyer_stats = get_stats(st.session_state.master_data[current_buyer])
+        buyer_stats = get_stats(md[current_buyer])
         st.write(f"Your Balance: **💰 {buyer_stats['GIL']} GIL**")
 
         if st.button("Confirm Purchase"):
             if buyer_stats["GIL"] >= perk_price:
-                st.session_state.master_data[current_buyer]["spent"] += perk_price
-                now_str = datetime.now().strftime("%d/%m %H:%M")
-                st.session_state.master_data[current_buyer]["history"].insert(0, f"{now_str}: Bought {perk_name} cost_{perk_price}")
+                md[current_buyer]["spent"] += perk_price
+                now_str = now_uk().strftime("%d/%m %H:%M")
+                md[current_buyer]["history"].insert(0, f"{now_str}: Bought {perk_name} cost_{perk_price}")
                 st.success(f"Authorized! {perk_name} acquired.")
                 st.rerun()
             else: st.error("Insufficient GIL.")
@@ -1296,17 +1795,41 @@ with tabs[9]:
     with shop_ui_col2:
         st.subheader("Item Logs")
         log_view_name = st.selectbox("View History For:", STAFF_NAMES)
-        logs = st.session_state.master_data[log_view_name].get("history", [])
+        logs = md[log_view_name].get("history", [])
         if logs:
             for entry in logs:
-                clean_entry = entry.split(" cost_")[0]
-                st.write(f"• {clean_entry}")
+                st.write(f"• {entry.split(' cost_')[0]}")
         else: st.write("No items purchased yet.")
 
 # =============================================================================
-# TAB 11: ADMIN COMMAND CENTER
+# TAB: ADMIN COMMAND CENTER
 # =============================================================================
-with tabs[10]:
+@st.dialog("🌙 Start a new month?")
+def new_month_dialog():
+    st.write("This will **reset every operative to zero**, clear all Wall Market purchases, side quests and "
+             "this month's trend history, and reset the team metrics, heatmap and outcomes.")
+    st.warning("Copy this month's save string first if you want to keep a record of it.")
+    confirm = st.text_input("Type NEW MONTH to confirm")
+    if st.button("Reset for the new month", type="primary", disabled=confirm.strip().upper() != "NEW MONTH"):
+        for n in STAFF_NAMES:
+            md[n].update({"in": 0, "out": 0, "open": 0, "close": 0, "ans": 100, "awol": 0,
+                          "days_worked": 0, "spent": 0, "history": [], "side_quests": [], "active_quest": {}})
+        md["team_stats"] = {"success_pct": 0.0, "sla_pct": 0.0, "longest_wait": "00:00:00", "avg_queue": "00:00:00"}
+        md["volume_stats"] = {slot: 0 for slot in TIME_SLOTS}
+        md["outcome_stats"] = {key: "0.0%" for key in OUTCOME_KEYS}
+        # Zero baseline dated the day before this month starts, so day 1's trends and level-ups work.
+        baseline = now_uk().date().replace(day=1) - timedelta(days=1)
+        md["history_log"] = {}
+        record_history(baseline)
+        md["meta"]["data_date"] = baseline.isoformat()
+        touch_last_updated()
+        st.session_state.daily_snapshot_data = {n: blank_snapshot() for n in STAFF_NAMES}
+        st.session_state.editor_ver += 1
+        st.session_state.flash_msg = "🌙 New month started! Everyone is back to zero. Remember to copy the save string into Secrets."
+        st.rerun()
+
+
+with tab_admin:
     st.header("🔐 Admin Command Center")
     admin_access = st.text_input("Enter Shinra Access Code", type="password")
     vault_password = st.secrets.get("admin_password", "shinra2026")
@@ -1314,17 +1837,97 @@ with tabs[10]:
     if admin_access == vault_password:
         st.success("Access Granted. Systems online.")
 
+        if st.session_state.get("flash_levelups"):
+            st.balloons()
+            for u in st.session_state.flash_levelups:
+                msg = f"🌟 **{u['name']}** reached **Level {u['to']}**!"
+                if u["new_rank"]:
+                    msg += f" New title: **{u['rank']}**"
+                st.success(msg)
+            st.session_state.flash_levelups = []
+        if st.session_state.get("flash_msg"):
+            st.success(st.session_state.flash_msg)
+            st.session_state.flash_msg = ""
+
+        # --- MODULE 1: ALL OPERATIVES IN ONE GRID ---
+        st.subheader("👤 Module 1: Morning Update – All Operatives")
+        st.caption("Edit any cell in the grid, set the date the numbers run up to, then commit once.")
+        mtd_df = pd.DataFrame(
+            [{
+                "Operative": n,
+                "Inbound": int(md[n]["in"]),
+                "Outbound": int(md[n]["out"]),
+                "SD Opened": int(md[n]["open"]),
+                "SD Closed": int(md[n]["close"]),
+                "Answer %": int(md[n]["ans"]),
+                "AWOL (mins)": md[n]["awol"],
+                "Days Worked": int(md[n].get("days_worked", 0)),
+            } for n in STAFF_NAMES]
+        ).set_index("Operative")
+        edited_mtd = st.data_editor(
+            mtd_df,
+            key=f"mtd_editor_{st.session_state.editor_ver}",
+            width="stretch",
+            num_rows="fixed",
+            column_config={
+                "Inbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "Outbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "SD Opened": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "SD Closed": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+                "Answer %": st.column_config.NumberColumn(min_value=0, max_value=100, step=1, format="%d%%"),
+                "AWOL (mins)": st.column_config.NumberColumn(min_value=0),
+                "Days Worked": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+            },
+        )
+        part_timers = [f"{n} x{w}" for n, w in SHIFT_WEIGHTS.items() if w < 1.0 and n in STAFF_NAMES]
+        if part_timers:
+            st.caption("Shift weights applied to averages and GIL: " + ", ".join(part_timers))
+        d_col, b_col = st.columns([1, 2])
+        with d_col:
+            data_for = st.date_input("Numbers are up to and including",
+                                     value=previous_working_day(now_uk().date()), format="DD/MM/YYYY")
+        with b_col:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            commit_mtd = st.button("Commit Morning Update to Lifestream", type="primary")
+        if commit_mtd:
+            before = {n: get_stats(md[n])["Level"] for n in STAFF_NAMES}
+            for n, row in edited_mtd.iterrows():
+                awol_val = row["AWOL (mins)"] if pd.notna(row["AWOL (mins)"]) else 0
+                md[n].update({
+                    "in": int(row["Inbound"] or 0),
+                    "out": int(row["Outbound"] or 0),
+                    "open": int(row["SD Opened"] or 0),
+                    "close": int(row["SD Closed"] or 0),
+                    "ans": int(row["Answer %"]) if pd.notna(row["Answer %"]) else 100,
+                    "awol": int(awol_val) if float(awol_val).is_integer() else float(awol_val),
+                    "days_worked": int(row["Days Worked"] or 0),
+                })
+            md["meta"]["data_date"] = data_for.isoformat()
+            touch_last_updated()
+            record_history(data_for)
+            ups = []
+            for n in STAFF_NAMES:
+                r = get_stats(md[n])
+                if r["Level"] > before[n]:
+                    old_rank = TITLES[min(max(before[n] - 1, 0), len(TITLES) - 1)]
+                    ups.append({"name": n, "to": r["Level"], "rank": r["Rank"], "new_rank": r["Rank"] != old_rank})
+            st.session_state.flash_levelups = ups
+            st.session_state.flash_msg = f"✅ Morning update saved for {fmt_day(data_for)}. Copy the save string at the bottom into Secrets."
+            st.session_state.editor_ver += 1
+            st.rerun()
+
+        st.divider()
+
         # --- MODULE 0: SIDE QUEST CONSOLE ---
-        st.subheader("🐉 Module 0: Tavern Dispatch Side Quest Control Board")
+        st.subheader("🐉 Module 2: Tavern Dispatch Side Quest Control Board")
         sq_adm_col1, sq_adm_col2 = st.columns(2)
-        
+
         with sq_adm_col1:
             st.markdown("##### **Deploy / Cancel Active Quests**")
             q_target = st.selectbox("Target Operative", STAFF_NAMES, key="q_tgt")
             q_title = st.text_input("Quest Objective Title (Free Text)", placeholder="e.g., Auditing Archive Logs / Writing SOP Guide")
             q_mins = st.number_input("Quest Duration (Minutes spent off-line)", min_value=1, value=60, step=1)
-            tgt_stats = st.session_state.master_data[q_target]
-            tgt_avgs = get_daily_averages(q_target, tgt_stats)
+            tgt_avgs = get_daily_averages(q_target, md[q_target])
             if tgt_avgs["avg_in"] is not None:
                 st.caption(f"ℹ️ Run Rate Preview for {q_target}: Extrapolating from calculated baseline metrics...")
             else:
@@ -1333,27 +1936,28 @@ with tabs[10]:
             with adm_btn_c1:
                 if st.button("🚀 Deploy to Active Quest Board"):
                     if q_title:
-                        st.session_state.master_data[q_target]["active_quest"] = {
+                        md[q_target]["active_quest"] = {
                             "title": q_title, "minutes": int(q_mins), "inflation": 1.0,
-                            "timestamp": datetime.now().strftime("%d/%m %H:%M")
+                            "timestamp": now_uk().strftime("%d/%m %H:%M")
                         }
+                        touch_last_updated()
                         st.success(f"{q_target} dispatched out to: '{q_title}'")
                         st.rerun()
                     else: st.error("Please provide a quest title description.")
             with adm_btn_c2:
                 if st.button("❌ Terminate Active Quest"):
-                    st.session_state.master_data[q_target]["active_quest"] = {}
+                    md[q_target]["active_quest"] = {}
                     st.toast(f"Active project for {q_target} purged.")
                     st.rerun()
 
         with sq_adm_col2:
             st.markdown("##### **Complete and Pay Out Quest**")
             q_complete_target = st.selectbox("Select Operative to Complete Active Quest For", STAFF_NAMES, key="q_comp_tgt")
-            active_q_obj = st.session_state.master_data[q_complete_target].get("active_quest", {})
+            active_q_obj = md[q_complete_target].get("active_quest", {})
             if active_q_obj and active_q_obj.get("title"):
                 st.info(f"**Quest:** {active_q_obj['title']}\n\n**Logged:** {active_q_obj['minutes']} mins (1:1 Frontline Match)")
                 if st.button("🏆 Mark Completed & Inject Rewards"):
-                    m_stats = st.session_state.master_data[q_complete_target]
+                    m_stats = md[q_complete_target]
                     avgs = get_daily_averages(q_complete_target, m_stats)
                     base_in = avgs["avg_in"] if avgs["avg_in"] is not None else 15
                     base_out = avgs["avg_out"] if avgs["avg_out"] is not None else 10
@@ -1369,54 +1973,26 @@ with tabs[10]:
                     if simulated_exp_sum < 1: simulated_exp_sum = max(1, round(m_duration * 0.4 * boost))
                     calculated_gil_bonus = round((simulated_exp_sum) ** 0.9)
                     if calculated_gil_bonus < 1: calculated_gil_bonus = max(1, round(simulated_exp_sum * 0.8))
+                    stamp_now = now_uk()
                     completed_quest_payload = {
                         "title": active_q_obj["title"], "minutes": m_duration, "inflation": boost,
                         "simulated_exp": int(simulated_exp_sum), "gil_reward": int(calculated_gil_bonus),
-                        "timestamp": datetime.now().strftime("%d/%m %H:%M")
+                        "timestamp": stamp_now.strftime("%d/%m %H:%M"),
+                        "ts": stamp_now.replace(tzinfo=None).isoformat(timespec="minutes"),
                     }
-                    st.session_state.master_data[q_complete_target]["side_quests"].append(completed_quest_payload)
-                    st.session_state.master_data[q_complete_target]["active_quest"] = {}
+                    md[q_complete_target]["side_quests"].append(completed_quest_payload)
+                    md[q_complete_target]["active_quest"] = {}
+                    touch_last_updated()
                     st.success(f"Quest Complete! Paid out +{simulated_exp_sum} EXP and +💰 {calculated_gil_bonus} GIL to {q_complete_target}.")
                     st.rerun()
             else:
                 st.write("This operative does not currently have an unresolved active side quest assignment.")
-                
-        st.divider()
-
-        # --- MODULE 1: INDIVIDUAL OPERATIVES ---
-        st.subheader("👤 Module 1: Update Individual Operative Metrics")
-        target_name = st.selectbox("Select Operative to Update", STAFF_NAMES)
-        operative_vals = st.session_state.master_data[target_name]
-        form_col1, form_col2 = st.columns(2)
-        with form_col1:
-            val_in   = st.number_input("Inbound Calls", value=operative_vals["in"])
-            val_out  = st.number_input("Outbound Calls", value=operative_vals["out"])
-            val_ans  = st.slider("Answer Rate %", 0, 100, int(operative_vals["ans"]))
-            val_days = st.number_input("Days Worked (MTD)", value=operative_vals.get("days_worked", 0), min_value=0, step=1)
-            val_avg_ans_time = st.text_input("Average Answer Time (HH:MM:SS or MM:SS)", value=operative_vals.get("avg_ans_time", "00:00:15"))
-        with form_col2:
-            val_open  = st.number_input("SD Tickets Opened", value=operative_vals["open"])
-            val_close = st.number_input("SD Tickets Closed", value=operative_vals["close"])
-            val_awol  = st.number_input("AWOL Minutes", value=operative_vals["awol"])
-            val_avg_call_time = st.text_input("Average Time in Call (HH:MM:SS or MM:SS)", value=operative_vals.get("avg_call_time", "00:03:30"))
-        shift_weight = SHIFT_WEIGHTS.get(target_name, 1.0)
-        if shift_weight < 1.0:
-            st.info(f"Shift weight for **{target_name}** is x{shift_weight}. {int(val_days)} days worked -> **{round(val_days * shift_weight, 2)} weighted days**.")
-        if st.button("Commit Operative Stats to Lifestream"):
-            st.session_state.master_data[target_name].update({
-                "in": val_in, "out": val_out, "ans": val_ans,
-                "open": val_open, "close": val_close, "awol": val_awol,
-                "days_worked": int(val_days),
-                "avg_ans_time": val_avg_ans_time,
-                "avg_call_time": val_avg_call_time
-            })
-            st.rerun()
 
         st.divider()
 
         # --- MODULE 2: GLOBALS & TEAM METRICS ---
-        st.subheader("🌐 Module 2: Update Team Global Metrics")
-        ts = st.session_state.master_data["team_stats"]
+        st.subheader("🌐 Module 3: Update Team Global Metrics")
+        ts = md["team_stats"]
         tm_col1, tm_col2 = st.columns(2)
         with tm_col1:
             val_success = st.number_input("Overall Success %", value=float(ts["success_pct"]), min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
@@ -1431,60 +2007,63 @@ with tabs[10]:
             if not aq_valid: st.error("Avg Queue Time format error. Use HH:MM:SS format.")
         if st.button("Commit Team Metrics to Lifestream"):
             if lw_valid and aq_valid:
-                st.session_state.master_data["team_stats"].update({
+                md["team_stats"].update({
                     "success_pct": val_success, "sla_pct": val_sla,
                     "longest_wait": val_longest_wait, "avg_queue": val_avg_queue
                 })
+                touch_last_updated()
                 st.rerun()
             else: st.error("Cannot preserve configuration.")
 
         st.divider()
 
         # --- MODULE 3: HEATMAP DATA ---
-        st.subheader("🔥 Module 3: Update Mako Traffic Flows & Global Outcomes")
+        st.subheader("🔥 Module 4: Update Mako Traffic Flows & Global Outcomes")
         st.markdown("##### **Part A: Half-Hour Volume Parameters Input Grid**")
         v_inputs = {}
         v_cols = st.columns(4)
         for idx, slot in enumerate(TIME_SLOTS):
             with v_cols[idx % 4]:
-                v_inputs[slot] = st.number_input(f"Vol: {slot}", value=int(st.session_state.master_data["volume_stats"].get(slot, 0)), min_value=0, step=1)
+                v_inputs[slot] = st.number_input(f"Vol: {slot}", value=int(md["volume_stats"].get(slot, 0)), min_value=0, step=1)
         st.markdown("##### **Part B: Standalone Percentage Metrics Input Grid**")
         o_inputs = {}
         o_cols = st.columns(4)
         for idx, key in enumerate(OUTCOME_KEYS):
             with o_cols[idx % 4]:
-                o_inputs[key] = st.text_input(f"{key}", value=str(st.session_state.master_data["outcome_stats"].get(key, "0.0%")))
+                o_inputs[key] = st.text_input(f"{key}", value=str(md["outcome_stats"].get(key, "0.0%")))
         if st.button("🚀 Mass-Commit Heatmap Metrics to Lifestream"):
-            for slot in TIME_SLOTS: st.session_state.master_data["volume_stats"][slot] = v_inputs[slot]
-            for key in OUTCOME_KEYS: st.session_state.master_data["outcome_stats"][key] = o_inputs[key]
+            for slot in TIME_SLOTS: md["volume_stats"][slot] = v_inputs[slot]
+            for key in OUTCOME_KEYS: md["outcome_stats"][key] = o_inputs[key]
+            touch_last_updated()
             st.success("All traffic flows saved!")
             st.rerun()
 
         st.divider()
 
         # --- MODULE 4: LEDGER CORRECTIONS ---
-        st.subheader("🚨 Module 4: Shinra Financial Audit & Ledger Deletions Panel")
+        st.subheader("🚨 Module 5: Shinra Financial Audit & Ledger Deletions Panel")
         aud_col1, aud_col2 = st.columns(2)
-        
+
         with aud_col1:
             st.markdown("##### **🐉 Roll Back Completed Side Quests**")
             sq_del_user  = st.selectbox("Select Operative to Audit Quests", STAFF_NAMES, key="sq_del_usr")
-            user_quests  = st.session_state.master_data[sq_del_user].get("side_quests", [])
+            user_quests  = md[sq_del_user].get("side_quests", [])
             if user_quests:
                 quest_options = [f"{idx} | {q['title']} (+{q['simulated_exp']} XP, +{q['gil_reward']} GIL)" for idx, q in enumerate(user_quests)]
                 selected_quest_str = st.selectbox("Select Target Quest to Erase", quest_options)
                 target_quest_idx   = int(selected_quest_str.split(" | ")[0])
                 if st.button("💥 Purge Quest & Deduct Rewards", type="primary"):
-                    removed_quest = st.session_state.master_data[sq_del_user]["side_quests"].pop(target_quest_idx)
+                    removed_quest = md[sq_del_user]["side_quests"].pop(target_quest_idx)
+                    touch_last_updated()
                     st.success(f"Successfully voided '{removed_quest['title']}'! Deducted {removed_quest['simulated_exp']} EXP and {removed_quest['gil_reward']} GIL from {sq_del_user}.")
                     st.rerun()
             else:
                 st.write("This operative has no completed side quests registered in this frame ledger.")
-                
+
         with aud_col2:
             st.markdown("##### **💰 Void Wall Market Purchases & Issue Refunds**")
             shop_del_user  = st.selectbox("Select Shopper to Audit Invoices", STAFF_NAMES, key="shop_del_usr")
-            user_history   = st.session_state.master_data[shop_del_user].get("history", [])
+            user_history   = md[shop_del_user].get("history", [])
             purchase_entries = [item for item in user_history if " cost_" in item]
             if purchase_entries:
                 purchase_options = [f"{idx} | {item.split(' cost_')[0]} (Refund Value: {item.split(' cost_')[1]} GIL)" for idx, item in enumerate(purchase_entries)]
@@ -1493,8 +2072,9 @@ with tabs[10]:
                 raw_string_to_remove = purchase_entries[target_item_idx_in_filtered]
                 if st.button("💸 Void Purchase & Refund GIL", type="primary"):
                     extracted_cost = int(raw_string_to_remove.split(" cost_")[1])
-                    st.session_state.master_data[shop_del_user]["history"].remove(raw_string_to_remove)
-                    st.session_state.master_data[shop_del_user]["spent"] -= extracted_cost
+                    md[shop_del_user]["history"].remove(raw_string_to_remove)
+                    md[shop_del_user]["spent"] -= extracted_cost
+                    touch_last_updated()
                     st.success(f"Order Voided! Refunded +💰 {extracted_cost} GIL back into {shop_del_user}'s wallet.")
                     st.rerun()
             else:
@@ -1502,11 +2082,31 @@ with tabs[10]:
 
         st.divider()
 
+        # --- MODULE 6: NEW MONTH ---
+        st.subheader("🌙 Module 6: New Month Reset")
+        st.write("Zero everything ready for the new month (asks you to confirm first).")
+        if st.button("🌙 Reset to New Month…"):
+            new_month_dialog()
+
+        st.divider()
+
         # --- EXPORT ---
-        st.subheader("Manual Data Save String")
-        st.warning("Ensure this text block code snippet is extracted and pasted into your active Streamlit Cloud Vault configuration properties framework setup.")
-        export_string = json.dumps(st.session_state.master_data)
-        st.code(f"staff_json = '{export_string}'", language="toml")
+        st.subheader("💾 Manual Data Save String")
+        st.markdown(f"<div class='data-stamp' style='margin-top:0;'>{html.escape(data_stamp_text())}</div>", unsafe_allow_html=True)
+        st.warning("Copy the line below and replace the existing **staff_json** line in your Streamlit Secrets (leave admin_password as it is).")
+        export_string = json.dumps(md, separators=(",", ":"))
+        # json.dumps of the string produces a safely escaped TOML basic string, so apostrophes,
+        # quotes and emoji in quest titles can never break the Secrets file.
+        toml_line = "staff_json = " + json.dumps(export_string)
+        try:
+            check_ok = json.loads(tomllib.loads(toml_line)["staff_json"]) == json.loads(export_string)
+        except Exception:
+            check_ok = False
+        if check_ok:
+            st.caption(f"✅ Save string checked and safe to paste ({len(toml_line) / 1024:.1f} KB).")
+        else:
+            st.error("⚠️ The save string failed its safety check – don't paste it; let me know what changed.")
+        st.code(toml_line, language="toml")
 
     elif admin_access != "":
         st.error("Access Denied. Security measures initialized.")
