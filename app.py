@@ -6,6 +6,7 @@ import json
 import re
 import html
 import calendar
+import zlib
 import unicodedata
 import tomllib
 from datetime import datetime, date, timedelta
@@ -604,7 +605,7 @@ def team_overview():
     n_staff = len(STAFF_NAMES) or 1
     total_out = sum(md[n]["out"] for n in STAFF_NAMES)
     avg_ans = sum(md[n]["ans"] for n in STAFF_NAMES) / n_staff if STAFF_NAMES else 100.0
-    total_awol = sum(md[n]["awol"] for n in STAFF_NAMES)
+    total_awol = round(sum(md[n]["awol"] for n in STAFF_NAMES), 1)
     sla = float(md["team_stats"]["sla_pct"])
     missions = [
         ("📞 Outbound", total_out >= GOAL_OUT, f"{total_out}/{GOAL_OUT}"),
@@ -635,6 +636,315 @@ def parse_quest_time(q, year):
         return datetime.strptime(f"{q.get('timestamp', '')}/{year}", "%d/%m %H:%M/%Y")
     except ValueError:
         return datetime.min
+
+
+# --- EXCEL PASTE READER ---
+# Reads a Ctrl+A / Ctrl+C copy of the tracking sheet. Everything is found by its text label
+# ("Inbound calls", "Date", "Heat map", "COMP-FULL D2S" ...), never by cell position, so the
+# layout around it doesn't matter. Totals on the sheet are used to double-check the reading.
+XL_PERSON_ROWS = {
+    "in": "Inbound calls",
+    "out": "Outbound calls",
+    "ans": "Attempts answered",
+    "awol": "Time AWOL",
+    "open": "Opened tickets",
+    "close": "Closed tickets",
+    "days": "Worked days",
+}
+XL_TEAM_COLS = {
+    "success_pct": 'Overall "success"',
+    "sla_pct": "Jobs >60 minutes within SD",
+    "longest_wait": "Longest wait time",
+    "avg_queue": "Average answer time",
+}
+XL_SUMMARY_ROW = "Average all days"
+XL_DATE_RE = re.compile(r"^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)")
+
+
+def _xl_norm(s):
+    return re.sub(r"[^a-z0-9%&>]+", " ", str(s).lower().replace("*", "")).strip()
+
+
+def _xl_num(v):
+    """'97%' -> 97.0, '0:03:32' -> 3.5 (minutes), '1,234' -> 1234.0, blanks/NA/#DIV/0! -> None"""
+    v = str(v).strip().replace(",", "")
+    if not v or v.upper() in ("NA", "N/A", "-") or v.startswith("#"):
+        return None
+    if re.fullmatch(r"\d+:\d{2}:\d{2}", v):
+        h, m, s = map(int, v.split(":"))
+        return round(h * 60 + m + s / 60, 1)
+    try:
+        return float(v.rstrip("%"))
+    except ValueError:
+        return None
+
+
+def _xl_hms(v):
+    v = str(v).strip()
+    m = re.fullmatch(r"(\d{1,2}):(\d{2}):(\d{2})", v)
+    return f"{int(m.group(1)):02d}:{m.group(2)}:{m.group(3)}" if m else None
+
+
+def _round_half_up(x):
+    # Excel rounds 2.5 up to 3; Python's round() would give 2
+    return int(math.floor(x + 0.5))
+
+
+def parse_excel_paste(text, staff_names, today):
+    g = [line.split("\t") for line in text.replace("\r", "").split("\n")]
+
+    def cell(r, c):
+        return g[r][c].strip() if 0 <= r < len(g) and 0 <= c < len(g[r]) else ""
+
+    def find(label):
+        want = _xl_norm(label)
+        for r, row in enumerate(g):
+            for c, v in enumerate(row):
+                if _xl_norm(v) == want:
+                    return r, c
+        return None
+
+    res = {"people": {}, "team": {}, "outcomes": {}, "volumes": {}, "data_date": None,
+           "issues": [], "checks": [], "found": []}
+
+    # ---------- per-person table ----------
+    anchor = find("Call vol")
+    if not anchor:
+        res["issues"].append("Couldn't find the people table (the cell saying 'Call vol'). Did the whole sheet get copied?")
+    else:
+        hr, hc = anchor
+        sheet_cols = {}
+        total_col = None
+        for c in range(hc + 1, len(g[hr])):
+            v = cell(hr, c)
+            if not v:
+                break
+            if v.lower() in ("total", "team"):
+                total_col = c
+                break
+            sheet_cols[v] = c
+        # Match sheet first names to dashboard names ("Sophie" -> "Sophie (Yuffie)")
+        name_map = {}
+        for sheet_name, c in sheet_cols.items():
+            match = [n for n in staff_names if n.split(" ")[0].lower() == sheet_name.lower()]
+            if match:
+                name_map[match[0]] = c
+            else:
+                res["issues"].append(f"'{sheet_name}' is on the sheet but not on the dashboard – skipped.")
+        for n in staff_names:
+            if n not in name_map:
+                res["issues"].append(f"{n.split(' ')[0]} wasn't found on the sheet – their numbers were left unchanged.")
+
+        def person_row(label):
+            want = _xl_norm(label)
+            for r in range(len(g)):
+                if _xl_norm(cell(r, hc)) == want:
+                    return r
+            return None
+
+        rows = {}
+        for key, label in XL_PERSON_ROWS.items():
+            rows[key] = person_row(label)
+            if rows[key] is None:
+                res["issues"].append(f"Couldn't find the '{label}' row – that column was left unchanged.")
+        for n, c in name_map.items():
+            vals = {}
+            for key, r in rows.items():
+                if r is None:
+                    continue
+                num = _xl_num(cell(r, c))
+                vals[key] = 0 if num is None else num
+            res["people"][n] = vals
+        if res["people"]:
+            res["found"].append(f"{len(res['people'])} operatives")
+
+        # Cross-checks against the sheet's own totals
+        if total_col is not None:
+            for key, label in [("in", "Inbound calls"), ("out", "Outbound calls"),
+                               ("open", "Opened tickets"), ("awol", "Time AWOL")]:
+                r = rows.get(key)
+                sheet_total = _xl_num(cell(r, total_col)) if r is not None else None
+                if sheet_total is None or len(name_map) != len(sheet_cols):
+                    continue
+                ours = round(sum(p.get(key, 0) for p in res["people"].values()), 1)
+                ok = abs(ours - sheet_total) < 0.15
+                shown = f"{ours:g}" if key != "awol" else f"{ours:g} min"
+                res["checks"].append((ok, f"{label}: people add up to {shown}, sheet total says {cell(r, total_col)}"))
+
+    # ---------- daily table: data date, team metrics, outcomes ----------
+    d_anchor = find("Date")
+    if not d_anchor:
+        res["issues"].append("Couldn't find the daily table (the 'Date' column) – team metrics and outcomes left unchanged.")
+    else:
+        dr, dc = d_anchor
+        col_of = {}
+        for c in range(dc, len(g[dr])):
+            v = cell(dr, c)
+            if v:
+                col_of.setdefault(_xl_norm(v), c)
+        vol_col = col_of.get(_xl_norm("Call Volume"))
+        latest = None
+        for r in range(dr + 1, len(g)):
+            m = XL_DATE_RE.match(cell(r, dc))
+            if m and vol_col is not None and _xl_num(cell(r, vol_col)) is not None:
+                try:
+                    d = datetime.strptime(f"{m.group(1)} {m.group(2)} {today.year}", "%d %B %Y").date()
+                except ValueError:
+                    continue
+                if d > today + timedelta(days=31):
+                    d = d.replace(year=d.year - 1)  # e.g. pasting December's sheet in January
+                latest = d if latest is None or d > latest else latest
+        res["data_date"] = latest
+        if latest is None:
+            res["issues"].append("Couldn't work out the latest day with data – please set the date yourself.")
+
+        summary_r = next((r for r in range(len(g)) if _xl_norm(cell(r, dc)) == _xl_norm(XL_SUMMARY_ROW)), None)
+        if summary_r is None:
+            res["issues"].append(f"Couldn't find the '{XL_SUMMARY_ROW}' row – team metrics and outcomes left unchanged.")
+        else:
+            for key, label in XL_TEAM_COLS.items():
+                c = col_of.get(_xl_norm(label))
+                if c is None:
+                    res["issues"].append(f"Couldn't find the '{label}' column – left unchanged.")
+                    continue
+                raw = cell(summary_r, c)
+                if key in ("longest_wait", "avg_queue"):
+                    hms = _xl_hms(raw)
+                    if hms:
+                        res["team"][key] = hms
+                    else:
+                        res["issues"].append(f"'{label}' wasn't a time (got '{raw}') – left unchanged.")
+                else:
+                    num = _xl_num(raw)
+                    if num is not None:
+                        res["team"][key] = round(num, 1)
+                    else:
+                        res["issues"].append(f"'{label}' had no number (got '{raw}') – left unchanged.")
+            for key in OUTCOME_KEYS:
+                c = col_of.get(_xl_norm(key))
+                if c is None:
+                    res["issues"].append(f"Couldn't find the '{key}' column – left unchanged.")
+                    continue
+                num = _xl_num(cell(summary_r, c))
+                res["outcomes"][key] = f"{(num or 0.0):.1f}%"
+            if res["team"]:
+                res["found"].append("team metrics")
+            if res["outcomes"]:
+                res["found"].append(f"{len(res['outcomes'])} outcome %s")
+
+    # ---------- heat map: average of each half-hour across the days filled in ----------
+    h_anchor = find("Heat map")
+    if not h_anchor:
+        res["issues"].append("Couldn't find the 'Heat map' table – half-hour volumes left unchanged.")
+    else:
+        mr, mc = h_anchor
+        slot_cols = {}
+        for c in range(mc + 1, len(g[mr])):
+            v = cell(mr, c)
+            m = re.fullmatch(r"(\d{1,2}):(\d{2})(?::\d{2})?", v)
+            if m:
+                slot_cols[f"{int(m.group(1)):02d}:{m.group(2)}:00"] = c
+        day_rows = [r for r in range(mr + 1, len(g))
+                    if XL_DATE_RE.match(cell(r, mc)) and any(cell(r, c) for c in slot_cols.values())]
+        for slot in TIME_SLOTS:
+            c = slot_cols.get(slot)
+            if c is None:
+                continue
+            vals = [_xl_num(cell(r, c)) for r in day_rows]
+            vals = [v for v in vals if v is not None]  # like Excel's AVERAGE, blanks are ignored
+            res["volumes"][slot] = _round_half_up(sum(vals) / len(vals)) if vals else 0
+        missing = [s[:5] for s in TIME_SLOTS if s not in slot_cols]
+        if missing:
+            res["issues"].append(f"Half-hour columns not found: {', '.join(missing)} – left unchanged.")
+        if day_rows:
+            res["found"].append(f"half-hour volumes from {len(day_rows)} days")
+            # Compare with the sheet's own AVERAGE row (the unlabelled row of numbers below the dates)
+            last_day = max(day_rows)
+            avg_row = next((r for r in range(last_day + 1, len(g))
+                            if not cell(r, mc) and sum(1 for c in slot_cols.values() if cell(r, c)) >= len(slot_cols) // 2), None)
+            if avg_row is not None and slot_cols:
+                sheet_vals = {s: _xl_num(cell(avg_row, c)) for s, c in slot_cols.items()}
+                agree = sum(1 for s, v in sheet_vals.items() if v is not None and round(v) == res["volumes"].get(s))
+                res["checks"].append((agree == len(slot_cols),
+                                      f"Half-hour averages: {agree} of {len(slot_cols)} match the sheet's AVERAGE row"))
+
+    res["ok"] = bool(res["people"]) and all(ok for ok, _ in res["checks"])
+    return res
+
+
+def tidy_number(v, dp=1):
+    """3.0 -> 3, 3.54 -> 3.5 – keeps whole numbers whole and allows halves/decimals."""
+    try:
+        v = round(float(v), dp)
+    except (TypeError, ValueError):
+        return 0
+    return int(v) if v.is_integer() else v
+
+
+def operative_grid(source, key):
+    """Editable grid of every operative's month-to-date numbers. source: name -> {in,out,open,close,ans,awol,days}"""
+    df = pd.DataFrame(
+        [{
+            "Operative": n,
+            "Inbound": int(round(source[n]["in"])),
+            "Outbound": int(round(source[n]["out"])),
+            "SD Opened": int(round(source[n]["open"])),
+            "SD Closed": int(round(source[n]["close"])),
+            "Answer %": tidy_number(source[n]["ans"]),
+            "AWOL (mins)": float(tidy_number(source[n]["awol"])),
+            "Days Worked": float(tidy_number(source[n]["days"])),
+        } for n in source]
+    ).set_index("Operative")
+    return st.data_editor(
+        df, key=key, width="stretch", num_rows="fixed",
+        column_config={
+            "Inbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+            "Outbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+            "SD Opened": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+            "SD Closed": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
+            "Answer %": st.column_config.NumberColumn(min_value=0, max_value=100, step=0.1),
+            "AWOL (mins)": st.column_config.NumberColumn(min_value=0, step=0.1),
+            "Days Worked": st.column_config.NumberColumn(min_value=0, step=0.5),
+        },
+    )
+
+
+def grid_to_values(edited):
+    out = {}
+    for n, row in edited.iterrows():
+        def g(col, default=0):
+            v = row[col]
+            return default if pd.isna(v) else v
+        out[n] = {
+            "in": int(round(g("Inbound"))), "out": int(round(g("Outbound"))),
+            "open": int(round(g("SD Opened"))), "close": int(round(g("SD Closed"))),
+            "ans": tidy_number(g("Answer %", 100)),
+            "awol": tidy_number(g("AWOL (mins)")),
+            "days_worked": tidy_number(g("Days Worked")),
+        }
+    return out
+
+
+def commit_operatives(values, data_for, message):
+    """Save every operative's numbers, stamp the data date, record history and celebrate level-ups."""
+    md = st.session_state.master_data
+    before = {n: get_stats(md[n])["Level"] for n in STAFF_NAMES}
+    for n, vals in values.items():
+        if n in md:
+            md[n].update(vals)
+    md["meta"]["data_date"] = data_for.isoformat()
+    touch_last_updated()
+    record_history(data_for)
+    ups = []
+    for n in STAFF_NAMES:
+        r = get_stats(md[n])
+        if r["Level"] > before[n]:
+            old_rank = TITLES[min(max(before[n] - 1, 0), len(TITLES) - 1)]
+            ups.append({"name": n, "to": r["Level"], "rank": r["Rank"], "new_rank": r["Rank"] != old_rank})
+    st.session_state.flash_levelups = ups
+    st.session_state.flash_msg = message
+    st.session_state.editor_ver += 1
+    st.rerun()
 
 
 # --- RUNNING INIT SEQUENCING ---
@@ -1385,7 +1695,7 @@ with tab_missions:
         elif avg_ans >= 95.0: st.warning(f"⚠️ WARNING: Average has dropped to {avg_ans:.1f}%")
         else: st.error(f"❌ CRITICAL: Average is below safety threshold at {avg_ans:.1f}%")
 
-    total_awol = sum(md[n]["awol"] for n in STAFF_NAMES)
+    total_awol = round(sum(md[n]["awol"] for n in STAFF_NAMES), 1)
     with st.container(key="hud_bounty_awol"):
         st.subheader("🐌 TEAM MISSION: Stay in the Fight")
         st.write(f"Objective: The entire team shares a **{int(MAX_AWOL)} minute** total AWOL pool.")
@@ -2082,36 +2392,81 @@ with tab_admin:
             st.success(st.session_state.flash_msg)
             st.session_state.flash_msg = ""
 
+        # --- QUICK UPDATE: PASTE FROM EXCEL ---
+        st.subheader("📋 Quick Update: Paste from Excel")
+        st.caption("In your tracking sheet press **Ctrl+A** then **Ctrl+C**. Click in the box below, press **Ctrl+V**, "
+                   "then click anywhere outside the box. Nothing is saved until you press the commit button.")
+        paste = st.text_area("Paste the whole sheet here", key=f"xl_paste_{st.session_state.editor_ver}", height=110,
+                             placeholder="Ctrl+A, Ctrl+C in Excel – then Ctrl+V here")
+        if paste.strip():
+            xl = parse_excel_paste(paste, STAFF_NAMES, now_uk().date())
+            with st.container(border=True):
+                for ok, msg in xl["checks"]:
+                    (st.success if ok else st.error)(("✅ " if ok else "❌ ") + msg)
+                for issue in xl["issues"]:
+                    st.warning("⚠️ " + issue)
+                if not xl["people"]:
+                    st.error("Couldn't read any operatives from that paste, so nothing has been filled in. "
+                             "Make sure you pressed Ctrl+A in the sheet before copying.")
+                elif not xl["ok"]:
+                    st.error("Something on the sheet doesn't add up (see the ❌ above), so nothing has been filled in. "
+                             "Fix it in Excel and paste again – or use the manual grid below.")
+                else:
+                    st.markdown(f"**Read from the sheet:** {', '.join(xl['found'])}. Check the numbers below – you can still edit any cell.")
+                    xl_source = {}
+                    for n in STAFF_NAMES:
+                        cur = {"in": md[n]["in"], "out": md[n]["out"], "open": md[n]["open"], "close": md[n]["close"],
+                               "ans": md[n]["ans"], "awol": md[n]["awol"], "days": md[n].get("days_worked", 0)}
+                        cur.update(xl["people"].get(n, {}))
+                        xl_source[n] = cur
+                    paste_id = zlib.crc32(paste.encode("utf-8"))
+                    edited_xl = operative_grid(xl_source, f"xl_grid_{st.session_state.editor_ver}_{paste_id}")
+                    with st.expander("🌐 Team metrics, outcomes & half-hour volumes from the sheet"):
+                        if xl["team"]:
+                            st.markdown("**Team metrics** (" + XL_SUMMARY_ROW + ")")
+                            st.table(pd.DataFrame([{
+                                "Overall Success %": f"{xl['team'].get('success_pct', '—')}%",
+                                "SD Within SLA %": f"{xl['team'].get('sla_pct', '—')}%",
+                                "Longest Wait": xl["team"].get("longest_wait", "—"),
+                                "Avg Queue Time": xl["team"].get("avg_queue", "—"),
+                            }]))
+                        if xl["outcomes"]:
+                            st.markdown("**Outcome percentages**")
+                            st.table(pd.DataFrame([xl["outcomes"]]))
+                        if xl["volumes"]:
+                            st.markdown("**Half-hour volumes** (average per day)")
+                            st.table(pd.DataFrame([{k[:5]: v for k, v in xl["volumes"].items()}]))
+                    xd_col, xb_col = st.columns([1, 2])
+                    with xd_col:
+                        xl_date = st.date_input("Numbers are up to and including",
+                                                value=xl["data_date"] or previous_working_day(now_uk().date()),
+                                                format="DD/MM/YYYY", key=f"xl_date_{st.session_state.editor_ver}_{paste_id}")
+                        if xl["data_date"]:
+                            st.caption(f"Latest day with data on the sheet: {fmt_day(xl['data_date'])}")
+                    with xb_col:
+                        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                        commit_xl = st.button("🚀 Commit everything to Lifestream", type="primary", key="xl_commit")
+                    if commit_xl:
+                        if xl["team"]:
+                            md["team_stats"].update(xl["team"])
+                        md["outcome_stats"].update(xl["outcomes"])
+                        md["volume_stats"].update(xl["volumes"])
+                        parts_saved = ["operatives"] + (["team metrics"] if xl["team"] else []) + \
+                                      (["outcomes"] if xl["outcomes"] else []) + (["half-hour volumes"] if xl["volumes"] else [])
+                        commit_operatives(grid_to_values(edited_xl), xl_date,
+                                          f"✅ Pasted update saved for {fmt_day(xl_date)} ({', '.join(parts_saved)}). "
+                                          "Copy the save string at the bottom into Secrets.")
+
+        st.divider()
+
         # --- MODULE 1: ALL OPERATIVES IN ONE GRID ---
         st.subheader("👤 Module 1: Morning Update – All Operatives")
-        st.caption("Edit any cell in the grid, set the date the numbers run up to, then commit once.")
-        mtd_df = pd.DataFrame(
-            [{
-                "Operative": n,
-                "Inbound": int(md[n]["in"]),
-                "Outbound": int(md[n]["out"]),
-                "SD Opened": int(md[n]["open"]),
-                "SD Closed": int(md[n]["close"]),
-                "Answer %": int(md[n]["ans"]),
-                "AWOL (mins)": md[n]["awol"],
-                "Days Worked": int(md[n].get("days_worked", 0)),
-            } for n in STAFF_NAMES]
-        ).set_index("Operative")
-        edited_mtd = st.data_editor(
-            mtd_df,
-            key=f"mtd_editor_{st.session_state.editor_ver}",
-            width="stretch",
-            num_rows="fixed",
-            column_config={
-                "Inbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
-                "Outbound": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
-                "SD Opened": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
-                "SD Closed": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
-                "Answer %": st.column_config.NumberColumn(min_value=0, max_value=100, step=1, format="%d%%"),
-                "AWOL (mins)": st.column_config.NumberColumn(min_value=0),
-                "Days Worked": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
-            },
-        )
+        st.caption("Manual entry: edit any cell in the grid, set the date the numbers run up to, then commit once. "
+                   "AWOL and days worked accept decimals (e.g. 3.5 minutes, 4.5 days).")
+        manual_source = {n: {"in": md[n]["in"], "out": md[n]["out"], "open": md[n]["open"], "close": md[n]["close"],
+                             "ans": md[n]["ans"], "awol": md[n]["awol"], "days": md[n].get("days_worked", 0)}
+                         for n in STAFF_NAMES}
+        edited_mtd = operative_grid(manual_source, f"mtd_editor_{st.session_state.editor_ver}")
         part_timers = [f"{n} x{w}" for n, w in SHIFT_WEIGHTS.items() if w < 1.0 and n in STAFF_NAMES]
         if part_timers:
             st.caption("Shift weights applied to averages and GIL: " + ", ".join(part_timers))
@@ -2123,31 +2478,8 @@ with tab_admin:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
             commit_mtd = st.button("Commit Morning Update to Lifestream", type="primary")
         if commit_mtd:
-            before = {n: get_stats(md[n])["Level"] for n in STAFF_NAMES}
-            for n, row in edited_mtd.iterrows():
-                awol_val = row["AWOL (mins)"] if pd.notna(row["AWOL (mins)"]) else 0
-                md[n].update({
-                    "in": int(row["Inbound"] or 0),
-                    "out": int(row["Outbound"] or 0),
-                    "open": int(row["SD Opened"] or 0),
-                    "close": int(row["SD Closed"] or 0),
-                    "ans": int(row["Answer %"]) if pd.notna(row["Answer %"]) else 100,
-                    "awol": int(awol_val) if float(awol_val).is_integer() else float(awol_val),
-                    "days_worked": int(row["Days Worked"] or 0),
-                })
-            md["meta"]["data_date"] = data_for.isoformat()
-            touch_last_updated()
-            record_history(data_for)
-            ups = []
-            for n in STAFF_NAMES:
-                r = get_stats(md[n])
-                if r["Level"] > before[n]:
-                    old_rank = TITLES[min(max(before[n] - 1, 0), len(TITLES) - 1)]
-                    ups.append({"name": n, "to": r["Level"], "rank": r["Rank"], "new_rank": r["Rank"] != old_rank})
-            st.session_state.flash_levelups = ups
-            st.session_state.flash_msg = f"✅ Morning update saved for {fmt_day(data_for)}. Copy the save string at the bottom into Secrets."
-            st.session_state.editor_ver += 1
-            st.rerun()
+            commit_operatives(grid_to_values(edited_mtd), data_for,
+                              f"✅ Morning update saved for {fmt_day(data_for)}. Copy the save string at the bottom into Secrets.")
 
         st.divider()
 
