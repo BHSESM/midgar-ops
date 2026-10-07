@@ -362,7 +362,7 @@ BOSS_DMG_PER_EXP = 10
 SATURDAY_WEIGHT = 0.5
 
 # Non-operative keys stored alongside the operatives in the saved data
-RESERVED_KEYS = {"team_stats", "volume_stats", "outcome_stats", "meta", "history_log"}
+RESERVED_KEYS = {"team_stats", "volume_stats", "outcome_stats", "meta", "history_log", "ytd"}
 REMOVED_FIELDS = ("avg_ans_time", "avg_call_time")
 
 # Daily history entries are stored compactly as lists in this order
@@ -706,6 +706,10 @@ def parse_excel_paste(text, staff_names, today):
 
     res = {"people": {}, "team": {}, "outcomes": {}, "volumes": {}, "data_date": None,
            "issues": [], "checks": [], "found": []}
+    if find("Total YTD") or find("YTD Total AWOL"):
+        res["issues"].append("This looks like the **Year to date** sheet – paste it into the Year to date box instead.")
+        res["ok"] = False
+        return res
 
     # ---------- per-person table ----------
     anchor = find("Call vol")
@@ -747,6 +751,10 @@ def parse_excel_paste(text, staff_names, today):
             rows[key] = person_row(label)
             if rows[key] is None:
                 res["issues"].append(f"Couldn't find the '{label}' row – that column was left unchanged.")
+        if rows.get("in") is None:
+            # Without the core row this isn't the month sheet (or it was only part-copied) – don't fill anything
+            res["issues"].append("Without the 'Inbound calls' row this doesn't look like the month-to-date sheet, so nothing will be filled in.")
+            name_map = {}
         for n, c in name_map.items():
             vals = {}
             for key, r in rows.items():
@@ -869,6 +877,198 @@ def parse_excel_paste(text, staff_names, today):
                                       f"Half-hour averages: {agree} of {len(slot_cols)} match the sheet's AVERAGE row"))
 
     res["ok"] = bool(res["people"]) and all(ok for ok, _ in res["checks"])
+    return res
+
+
+# --- YEAR TO DATE PASTE READER ---
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
+               "August", "September", "October", "November", "December"]
+YTD_FIELDS = ["in", "out", "open", "close", "ans", "awol"]   # stored per person per month, in this order
+# Which monthly table is which, by words in its heading
+YTD_TABLES = [("total", ["call vol total"]), ("out", ["outbound"]), ("open", ["opened"]),
+              ("close", ["closed"]), ("awol", ["awol"]), ("ans", ["answered"])]
+
+
+def _month_index(text):
+    t = str(text).strip().lower()
+    for i, m in enumerate(MONTH_NAMES):
+        if t == m.lower() or t == m[:3].lower():
+            return i + 1
+    return None
+
+
+def _xl_seconds(v):
+    m = re.fullmatch(r"(\d+):(\d{2}):(\d{2})", str(v).strip())
+    return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) if m else None
+
+
+def parse_ytd_paste(text, staff_names, today):
+    g = [line.split("\t") for line in text.replace("\r", "").split("\n")]
+
+    def cell(r, c):
+        return g[r][c].strip() if 0 <= r < len(g) and 0 <= c < len(g[r]) else ""
+
+    firsts = {n.split(" ")[0].lower(): n for n in staff_names}
+    res = {"issues": [], "checks": [], "found": [], "data": None, "ok": False}
+    flat = {_xl_norm(v) for row in g for v in row if v.strip()}
+    if _xl_norm("Heat map") in flat or _xl_norm("Inbound calls") in flat:
+        if _xl_norm("Total YTD") not in flat:
+            res["issues"].append("This looks like the **Month to date** sheet – paste it into the Month to date box instead.")
+            return res
+
+    # Every table starts with a heading row: <label> | Sophie | Bryan | ...
+    headers = []
+    for r, row in enumerate(g):
+        for c in range(len(row) - 1):
+            names, cc = {}, c + 1
+            while cc < len(row) and cell(r, cc).lower() in firsts:
+                names[firsts[cell(r, cc).lower()]] = cc
+                cc += 1
+            if len(names) >= max(2, len(staff_names) // 2):
+                headers.append((r, c, cell(r, c), names))
+                break
+
+    monthly = {}          # key -> {month: {name: raw}}
+    table_meta = {}       # key -> (header row, label col, names)
+    top = None
+    for r, c, label, names in headers:
+        lab = _xl_norm(label)
+        months = {}
+        rr = r + 1
+        while rr < len(g) and _month_index(cell(rr, c)):
+            months[_month_index(cell(rr, c))] = {n: cell(rr, cc) for n, cc in names.items()}
+            rr += 1
+        if not months:
+            if lab == _xl_norm("Call vol"):
+                top = (r, c, names)
+            continue
+        for key, words in YTD_TABLES:
+            if key not in monthly and any(w in lab for w in words):
+                monthly[key] = months
+                table_meta[key] = (r, c, names)
+                break
+
+    labels = {"total": "Call vol total", "out": "Outbound calls", "open": "Tickets opened",
+              "close": "Tickets closed", "awol": "AWOL", "ans": "Call answered %"}
+    for key, lab in labels.items():
+        if key not in monthly:
+            res["issues"].append(f"Couldn't find the monthly '{lab}' table.")
+    if "total" not in monthly:
+        res["issues"].append("Without the 'Call vol total' table there's nothing to build the year from – nothing will be saved.")
+        return res
+
+    for n in staff_names:
+        if n not in table_meta["total"][2]:
+            res["issues"].append(f"{n.split(' ')[0]} wasn't found on the YTD sheet.")
+
+    # Months with any call volume entered
+    months_with_data = sorted(m for m, vals in monthly["total"].items() if any(_xl_num(v) is not None for v in vals.values()))
+    if not months_with_data:
+        res["issues"].append("No months with call volumes were found.")
+        return res
+
+    data_months = {}
+    for m in months_with_data:
+        entry = {}
+        for n in table_meta["total"][2]:
+            def val(key, kind="num"):
+                raw = monthly.get(key, {}).get(m, {}).get(n, "")
+                if kind == "sec":
+                    s = _xl_seconds(raw)
+                    return None if s is None else s
+                return _xl_num(raw)
+            total = val("total") or 0
+            out = val("out") or 0
+            awol_s = val("awol", "sec")
+            entry[n] = [int(round(total - out)), int(round(out)), int(round(val("open") or 0)),
+                        int(round(val("close") or 0)), val("ans"),
+                        round((awol_s or 0) / 60, 1)]
+        data_months[f"{m:02d}"] = entry
+
+    # Top block: YTD totals + days worked
+    days, top_rows = {}, {}
+    if top is None:
+        res["issues"].append("Couldn't find the YTD totals block ('Call vol' / 'Total YTD'), so the totals can't be double-checked.")
+    else:
+        tr, tc, tnames = top
+
+        def top_row(label):
+            want = _xl_norm(label)
+            for r in range(tr + 1, len(g)):
+                if _xl_norm(cell(r, tc)) == want and any(_xl_num(cell(r, cc)) is not None for cc in tnames.values()):
+                    return r
+            return None
+
+        for key, label in [("total", "Total YTD"), ("out", "Outbound calls"), ("open", "SD Opened"),
+                           ("close", "SD Closed"), ("days", "Days worked")]:
+            r = top_row(label)
+            if r is None:
+                res["issues"].append(f"Couldn't find '{label}' in the YTD totals block.")
+            else:
+                top_rows[key] = {n: _xl_num(cell(r, cc)) for n, cc in tnames.items()}
+        days = {n: (v or 0) for n, v in top_rows.get("days", {}).items()}
+
+    # Cross-checks: monthly tables must add up to the sheet's own YTD figures
+    def monthly_sum(n, key):
+        idx = {"in": 0, "out": 1, "open": 2, "close": 3}
+        if key == "total":
+            return sum(data_months[m][n][0] + data_months[m][n][1] for m in data_months if n in data_months[m])
+        return sum(data_months[m][n][idx[key]] for m in data_months if n in data_months[m])
+
+    for key, label in [("total", "Call volume"), ("out", "Outbound"), ("open", "Tickets opened"), ("close", "Tickets closed")]:
+        if key not in top_rows or key not in monthly:
+            continue
+        bad = [f"{n.split(' ')[0]} ({monthly_sum(n, key):,} vs {int(v):,})"
+               for n, v in top_rows[key].items() if v is not None and abs(monthly_sum(n, key) - v) > 0.5]
+        res["checks"].append((not bad, f"{label}: monthly figures add up to the YTD totals for everyone"
+                              if not bad else f"{label}: months don't add up to the YTD total for " + ", ".join(bad)))
+
+    if "awol" in table_meta:
+        r0, c0, anames = table_meta["awol"]
+        tot_r = next((r for r in range(r0 + 1, len(g)) if _xl_norm(cell(r, c0)) == _xl_norm("YTD Total AWOL")), None)
+        if tot_r is not None:
+            bad = []
+            for n, cc in anames.items():
+                sheet = _xl_seconds(cell(tot_r, cc))
+                ours = sum(_xl_seconds(monthly["awol"][m].get(n, "")) or 0 for m in months_with_data if m in monthly["awol"])
+                if sheet is not None and sheet != ours:
+                    bad.append(n.split(" ")[0])
+            res["checks"].append((not bad, "AWOL: months add up to the YTD total for everyone" if not bad
+                                  else "AWOL: months don't add up to the YTD total for " + ", ".join(bad)))
+
+    if "ans" in table_meta:
+        r0, c0, anames = table_meta["ans"]
+        avg_r = next((r for r in range(r0 + 1, len(g)) if "average" in _xl_norm(cell(r, c0))), None)
+        if avg_r is not None:
+            bad = []
+            for n, cc in anames.items():
+                sheet = _xl_num(cell(avg_r, cc))
+                vals = [data_months[m][n][4] for m in data_months if n in data_months[m] and data_months[m][n][4] is not None]
+                if sheet is not None and vals and abs(sum(vals) / len(vals) - sheet) > 0.06:
+                    bad.append(n.split(" ")[0])
+            res["checks"].append((not bad, "Answer %: monthly figures match the YTD average for everyone" if not bad
+                                  else "Answer %: months don't match the YTD average for " + ", ".join(bad)))
+
+    # Extra headline figures, if present
+    summary = {}
+    for label in ("Jobs supported", "Calls handled", "Ratio Call to job"):
+        want = _xl_norm(label)
+        for r, row in enumerate(g):
+            hit = next((c for c, v in enumerate(row) if _xl_norm(v) == want), None)
+            if hit is not None:
+                num = next((_xl_num(cell(r, c)) for c in range(hit + 1, len(row)) if _xl_num(cell(r, c)) is not None), None)
+                if num is not None:
+                    summary[label] = num
+                break
+
+    first, last = months_with_data[0], months_with_data[-1]
+    res["found"].append(f"{len(table_meta['total'][2])} operatives")
+    res["found"].append(f"{MONTH_NAMES[first - 1][:3]}–{MONTH_NAMES[last - 1][:3]} ({len(months_with_data)} months)")
+    if days:
+        res["found"].append("days worked")
+    res["data"] = {"year": today.year, "months": data_months, "days": days, "summary": summary,
+                   "updated": now_uk().strftime("%a %d %b %H:%M")}
+    res["ok"] = all(ok for ok, _ in res["checks"])
     return res
 
 
@@ -1506,9 +1706,9 @@ def style_fig(fig, height=300):
 
 # --- TABS ---
 (tab_party, tab_brief, tab_boss, tab_missions, tab_quests, tab_snapshot, tab_overview,
- tab_charts, tab_trends, tab_spirit, tab_heat, tab_shop, tab_admin) = st.tabs([
+ tab_charts, tab_trends, tab_ytd, tab_spirit, tab_heat, tab_shop, tab_admin) = st.tabs([
     "⚔️ Active Party", "📣 Morning Brief", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests",
-    "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts", "📉 Trends",
+    "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts", "📉 Trends", "📆 Year to Date",
     "🌟 Party Spirit", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
 ])
 
@@ -2044,6 +2244,178 @@ with tab_trends:
 
 
 # =============================================================================
+# TAB: YEAR TO DATE (from the YTD sheet pasted in Admin)
+# =============================================================================
+def fmt_mins(m):
+    secs = int(round((m or 0) * 60))
+    return f"{secs // 3600}:{secs % 3600 // 60:02d}:{secs % 60:02d}"
+
+
+with tab_ytd:
+    st.title("📆 Year to Date")
+    ytd = md.get("ytd")
+    if not ytd or not ytd.get("months"):
+        st.info("No year-to-date data yet. In **Admin → Quick Update**, paste your year sheet into the "
+                "**Year to date** box and commit. 📆")
+    else:
+        months = sorted(ytd["months"])
+        mlabels = [MONTH_NAMES[int(m) - 1][:3] for m in months]
+        cur_month = f"{get_data_date().month:02d}"
+        if cur_month in months:
+            mlabels[months.index(cur_month)] += " (so far)"
+        people = [n for n in STAFF_NAMES if any(n in ytd["months"][m] for m in months)]
+        pcol = {n: LINE_COLORS[i % len(LINE_COLORS)] for i, n in enumerate(STAFF_NAMES)}
+        short = {n: n.split(" ")[0] for n in people}
+        F = {k: i for i, k in enumerate(YTD_FIELDS)}
+
+        def val(m, n, key):
+            row = ytd["months"][m].get(n)
+            return (row[F[key]] if row and row[F[key]] is not None else None)
+
+        def tot(n, key):
+            return sum(val(m, n, key) or 0 for m in months)
+
+        stamp_txt = "{} · {} – {} · updated {}".format(ytd.get("year", ""), mlabels[0], mlabels[-1], ytd.get("updated", "—"))
+        st.markdown(f"<div class='data-stamp'>{html.escape(stamp_txt)}</div>", unsafe_allow_html=True)
+
+        # ── Headline cards ─────────────────────────────────────────────────────
+        team_in = sum(tot(n, "in") for n in people)
+        team_out = sum(tot(n, "out") for n in people)
+        team_open = sum(tot(n, "open") for n in people)
+        team_close = sum(tot(n, "close") for n in people)
+        ans_vals = [val(m, n, "ans") for m in months for n in people if val(m, n, "ans") is not None]
+        team_ans = sum(ans_vals) / len(ans_vals) if ans_vals else 0
+        team_awol = sum(tot(n, "awol") for n in people)
+        cards = [(f"{team_in + team_out:,}", "📞 Calls handled"), (f"{team_in:,}", "📥 Inbound"),
+                 (f"{team_out:,}", "📤 Outbound"), (f"{team_open:,}", "📂 Tickets opened"),
+                 (f"{team_close:,}", "✅ Tickets closed"), (f"{team_ans:.1f}%", "🛡️ Avg answer rate"),
+                 (fmt_mins(team_awol), "🐌 Team AWOL")]
+        if ytd.get("summary", {}).get("Jobs supported"):
+            cards.append((f"{int(ytd['summary']['Jobs supported']):,}", "🔧 Jobs supported"))
+        for row_start in range(0, len(cards), 4):
+            cols = st.columns(4)
+            for col, (big, lbl) in zip(cols, cards[row_start:row_start + 4]):
+                with col:
+                    st.markdown(f"<div class='spirit-card'><span class='spirit-stat-big'>{big}</span>"
+                                f"<span class='spirit-stat-label'>{lbl}</span></div>", unsafe_allow_html=True)
+
+        # ── Team month by month ────────────────────────────────────────────────
+        st.subheader("📊 Team output month by month")
+        fig_m = go.Figure()
+        for key, lbl, colr in [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"),
+                               ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]:
+            fig_m.add_trace(go.Bar(name=lbl, x=mlabels, y=[sum(val(m, n, key) or 0 for n in people) for m in months],
+                                   marker_color=colr, opacity=0.88))
+        fig_m.update_layout(barmode="stack")
+        st.plotly_chart(style_fig(fig_m, 340), width="stretch", config={"displayModeBar": False})
+
+        # ── Per-person trend with a metric picker ───────────────────────────────
+        st.subheader("📈 Month by month, per person")
+        metric_opts = {"Inbound": "in", "Outbound": "out", "Tickets opened": "open", "Tickets closed": "close",
+                       "Answer %": "ans", "AWOL (mins)": "awol", "Calls + tickets": "all"}
+        pick = st.radio("Show", list(metric_opts), horizontal=True, key="ytd_metric", label_visibility="collapsed")
+        fig_p = go.Figure()
+        for n in people:
+            if metric_opts[pick] == "all":
+                ys = [sum(val(m, n, k) or 0 for k in ("in", "out", "open", "close")) for m in months]
+            else:
+                ys = [val(m, n, metric_opts[pick]) for m in months]
+            fig_p.add_trace(go.Scatter(x=mlabels, y=ys, mode="lines+markers", name=short[n],
+                                       line=dict(color=pcol[n], width=3), connectgaps=False))
+        if metric_opts[pick] == "ans":
+            fig_p.add_hline(y=GOAL_ANS, line_dash="dot", line_color="#ffcc00")
+        st.plotly_chart(style_fig(fig_p, 360), width="stretch", config={"displayModeBar": False})
+        st.caption("The current month is partial, so expect its point to dip until the month is complete.")
+
+        # ── Answer % heatmap ───────────────────────────────────────────────────
+        st.subheader("🛡️ Answer rate by month")
+        z = [[val(m, n, "ans") for m in months] for n in people]
+        flat = [v for row in z for v in row if v is not None]
+        fig_h = go.Figure(go.Heatmap(
+            z=z, x=mlabels, y=[short[n] for n in people],
+            colorscale=[[0, "#ff4b4b"], [0.5, "#ffcc00"], [1, "#00ffcc"]],
+            zmin=min(flat + [95]), zmax=100, xgap=3, ygap=3,
+            text=[[f"{v:g}%" if v is not None else "" for v in row] for row in z],
+            texttemplate="%{text}", textfont=dict(family="Courier New", size=13, color="#0a0e13"),
+            hovertemplate="%{y} · %{x}: %{z}%<extra></extra>", showscale=False))
+        fig_h.update_yaxes(autorange="reversed")
+        st.plotly_chart(style_fig(fig_h, 70 + 42 * len(people)), width="stretch", config={"displayModeBar": False})
+
+        # ── Leaderboards ───────────────────────────────────────────────────────
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("🏆 YTD totals")
+            fig_t = go.Figure()
+            for key, lbl, colr in [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"),
+                                   ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]:
+                fig_t.add_trace(go.Bar(name=lbl, x=[short[n] for n in people], y=[tot(n, key) for n in people],
+                                       marker_color=colr, opacity=0.88))
+            fig_t.update_layout(barmode="stack")
+            st.plotly_chart(style_fig(fig_t, 340), width="stretch", config={"displayModeBar": False})
+        with c2:
+            st.subheader("⚖️ Per day (weighted)")
+            days = ytd.get("days", {})
+            fig_w = go.Figure()
+            for key, lbl, colr in [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"),
+                                   ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]:
+                ys = []
+                for n in people:
+                    wd = (days.get(n) or 0) * SHIFT_WEIGHTS.get(n, 1.0)
+                    ys.append(round(tot(n, key) / wd) if wd > 0 else 0)
+                fig_w.add_trace(go.Bar(name=lbl, x=[short[n] for n in people], y=ys, marker_color=colr,
+                                       opacity=0.88, text=ys, textposition="outside",
+                                       textfont=dict(color="#f0f0f0", family="Courier New", size=11)))
+            fig_w.update_layout(barmode="group")
+            st.plotly_chart(style_fig(fig_w, 340), width="stretch", config={"displayModeBar": False})
+            if not days:
+                st.caption("Days worked weren't on the YTD sheet, so per-day figures can't be worked out.")
+
+        # ── Share of the work ──────────────────────────────────────────────────
+        st.subheader("🍰 Share of the team's work each month")
+        fig_s = go.Figure()
+        for n in people:
+            fig_s.add_trace(go.Bar(name=short[n], x=mlabels, marker_color=pcol[n], opacity=0.9,
+                                   y=[sum(val(m, n, k) or 0 for k in ("in", "out", "open", "close")) for m in months]))
+        fig_s.update_layout(barmode="stack", barnorm="percent")
+        style_fig(fig_s, 340)
+        fig_s.update_yaxes(ticksuffix="%")
+        st.plotly_chart(fig_s, width="stretch", config={"displayModeBar": False})
+        st.caption("Calls + tickets. Raw share – reduced-hours shifts will naturally have a smaller slice.")
+
+        # ── AWOL by month ──────────────────────────────────────────────────────
+        st.subheader("🐌 AWOL by month (minutes)")
+        fig_a = go.Figure()
+        for n in people:
+            fig_a.add_trace(go.Bar(name=short[n], x=mlabels, y=[val(m, n, "awol") or 0 for m in months],
+                                   marker_color=pcol[n], opacity=0.9))
+        fig_a.update_layout(barmode="stack")
+        st.plotly_chart(style_fig(fig_a, 320), width="stretch", config={"displayModeBar": False})
+
+        # ── Records ────────────────────────────────────────────────────────────
+        st.subheader("🌟 Records this year")
+        complete = [m for m in months if m != cur_month] or months
+        rec_rows = []
+        for n in people:
+            outp = {m: sum(val(m, n, k) or 0 for k in ("in", "out", "open", "close")) for m in complete}
+            best_m = max(outp, key=outp.get)
+            ans_m = {m: val(m, n, "ans") for m in complete if val(m, n, "ans") is not None}
+            best_a = max(ans_m, key=ans_m.get) if ans_m else None
+            rec_rows.append({
+                "Operative": n,
+                "Busiest month": f"{MONTH_NAMES[int(best_m) - 1][:3]} ({outp[best_m]:,})",
+                "Best answer rate": f"{MONTH_NAMES[int(best_a) - 1][:3]} ({ans_m[best_a]:g}%)" if best_a else "—",
+                "YTD calls + tickets": f"{sum(tot(n, k) for k in ('in', 'out', 'open', 'close')):,}",
+                "YTD AWOL": fmt_mins(tot(n, "awol")),
+            })
+        st.table(pd.DataFrame(rec_rows))
+        team_by_month = {m: sum(sum(val(m, n, k) or 0 for k in ("in", "out", "open", "close")) for n in people) for m in complete}
+        if team_by_month:
+            tb = max(team_by_month, key=team_by_month.get)
+            st.success(f"🏆 Team's busiest month: **{MONTH_NAMES[int(tb) - 1]}** with **{team_by_month[tb]:,}** calls + tickets")
+        st.caption("Records use completed months only, so the current part-month doesn't skew them.")
+
+
+# =============================================================================
 # TAB: PARTY SPIRIT — COLLECTIVE TEAM VIEW
 # =============================================================================
 with tab_spirit:
@@ -2394,22 +2766,39 @@ with tab_admin:
 
         # --- QUICK UPDATE: PASTE FROM EXCEL ---
         st.subheader("📋 Quick Update: Paste from Excel")
-        st.caption("In your tracking sheet press **Ctrl+A** then **Ctrl+C**. Click in the box below, press **Ctrl+V**, "
-                   "then click anywhere outside the box. Nothing is saved until you press the commit button.")
-        paste = st.text_area("Paste the whole sheet here", key=f"xl_paste_{st.session_state.editor_ver}", height=110,
-                             placeholder="Ctrl+A, Ctrl+C in Excel – then Ctrl+V here")
-        if paste.strip():
-            xl = parse_excel_paste(paste, STAFF_NAMES, now_uk().date())
+        st.caption("In each sheet press **Ctrl+A** then **Ctrl+C**, click in the matching box and press **Ctrl+V**, "
+                   "then click anywhere outside the box. Paste one or both – nothing is saved until you press commit.")
+        ver = st.session_state.editor_ver
+        pc1, pc2 = st.columns(2)
+        with pc1:
+            paste = st.text_area("📅 Month to date sheet", key=f"xl_paste_{ver}", height=110,
+                                 placeholder="Ctrl+A, Ctrl+C in the month sheet – then Ctrl+V here")
+        with pc2:
+            ytd_paste = st.text_area("📆 Year to date sheet", key=f"xl_ytd_paste_{ver}", height=110,
+                                     placeholder="Ctrl+A, Ctrl+C in the year sheet – then Ctrl+V here")
+        today_uk = now_uk().date()
+        xl = parse_excel_paste(paste, STAFF_NAMES, today_uk) if paste.strip() else None
+        yx = parse_ytd_paste(ytd_paste, STAFF_NAMES, today_uk) if ytd_paste.strip() else None
+        mtd_ready = bool(xl and xl["ok"])
+        ytd_ready = bool(yx and yx["ok"])
+        blocked = (xl is not None and not xl["ok"]) or (yx is not None and not yx["ok"])
+        edited_xl, xl_date = None, None
+
+        def show_checks(result):
+            for ok, msg in result["checks"]:
+                (st.success if ok else st.error)(("✅ " if ok else "❌ ") + msg)
+            for issue in result["issues"]:
+                st.warning("⚠️ " + issue)
+
+        if xl is not None:
             with st.container(border=True):
-                for ok, msg in xl["checks"]:
-                    (st.success if ok else st.error)(("✅ " if ok else "❌ ") + msg)
-                for issue in xl["issues"]:
-                    st.warning("⚠️ " + issue)
+                st.markdown("#### 📅 Month to date")
+                show_checks(xl)
                 if not xl["people"]:
-                    st.error("Couldn't read any operatives from that paste, so nothing has been filled in. "
-                             "Make sure you pressed Ctrl+A in the sheet before copying.")
+                    st.error("Couldn't read the month's numbers from that paste, so nothing will be filled in. "
+                             "Make sure you pressed Ctrl+A in the month sheet before copying.")
                 elif not xl["ok"]:
-                    st.error("Something on the sheet doesn't add up (see the ❌ above), so nothing has been filled in. "
+                    st.error("Something on the month sheet doesn't add up (see the ❌ above), so nothing will be filled in. "
                              "Fix it in Excel and paste again – or use the manual grid below.")
                 else:
                     st.markdown(f"**Read from the sheet:** {', '.join(xl['found'])}. Check the numbers below – you can still edit any cell.")
@@ -2420,7 +2809,7 @@ with tab_admin:
                         cur.update(xl["people"].get(n, {}))
                         xl_source[n] = cur
                     paste_id = zlib.crc32(paste.encode("utf-8"))
-                    edited_xl = operative_grid(xl_source, f"xl_grid_{st.session_state.editor_ver}_{paste_id}")
+                    edited_xl = operative_grid(xl_source, f"xl_grid_{ver}_{paste_id}")
                     with st.expander("🌐 Team metrics, outcomes & half-hour volumes from the sheet"):
                         if xl["team"]:
                             st.markdown("**Team metrics** (" + XL_SUMMARY_ROW + ")")
@@ -2436,26 +2825,57 @@ with tab_admin:
                         if xl["volumes"]:
                             st.markdown("**Half-hour volumes** (average per day)")
                             st.table(pd.DataFrame([{k[:5]: v for k, v in xl["volumes"].items()}]))
-                    xd_col, xb_col = st.columns([1, 2])
-                    with xd_col:
-                        xl_date = st.date_input("Numbers are up to and including",
-                                                value=xl["data_date"] or previous_working_day(now_uk().date()),
-                                                format="DD/MM/YYYY", key=f"xl_date_{st.session_state.editor_ver}_{paste_id}")
-                        if xl["data_date"]:
-                            st.caption(f"Latest day with data on the sheet: {fmt_day(xl['data_date'])}")
-                    with xb_col:
-                        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                        commit_xl = st.button("🚀 Commit everything to Lifestream", type="primary", key="xl_commit")
-                    if commit_xl:
+                    xl_date = st.date_input("Numbers are up to and including",
+                                            value=xl["data_date"] or previous_working_day(today_uk),
+                                            format="DD/MM/YYYY", key=f"xl_date_{ver}_{paste_id}")
+                    if xl["data_date"]:
+                        st.caption(f"Latest day with data on the sheet: {fmt_day(xl['data_date'])}")
+
+        if yx is not None:
+            with st.container(border=True):
+                st.markdown("#### 📆 Year to date")
+                show_checks(yx)
+                if not yx["ok"]:
+                    st.error("The year sheet couldn't be read or doesn't add up (see above), so it won't be saved.")
+                else:
+                    st.markdown(f"**Read from the sheet:** {', '.join(yx['found'])}.")
+                    ym = yx["data"]["months"]
+                    st.table(pd.DataFrame([{
+                        "Month": MONTH_NAMES[int(m) - 1][:3],
+                        "Inbound": sum(v[0] for v in ym[m].values()),
+                        "Outbound": sum(v[1] for v in ym[m].values()),
+                        "Opened": sum(v[2] for v in ym[m].values()),
+                        "Closed": sum(v[3] for v in ym[m].values()),
+                        "AWOL (mins)": round(sum(v[5] for v in ym[m].values()), 1),
+                    } for m in sorted(ym)]).set_index("Month"))
+
+        if xl is not None or yx is not None:
+            if blocked:
+                st.error("🛑 Nothing will be saved until every pasted sheet passes its checks. "
+                         "Clear or fix the one with ❌ / ⚠️ above.")
+            elif mtd_ready or ytd_ready:
+                what = " + ".join((["month"] if mtd_ready else []) + (["year"] if ytd_ready else []))
+                if st.button(f"🚀 Commit everything to Lifestream ({what})", type="primary", key="xl_commit"):
+                    saved = []
+                    if ytd_ready:
+                        md["ytd"] = yx["data"]
+                        saved.append("year to date")
+                    if mtd_ready:
                         if xl["team"]:
                             md["team_stats"].update(xl["team"])
                         md["outcome_stats"].update(xl["outcomes"])
                         md["volume_stats"].update(xl["volumes"])
-                        parts_saved = ["operatives"] + (["team metrics"] if xl["team"] else []) + \
-                                      (["outcomes"] if xl["outcomes"] else []) + (["half-hour volumes"] if xl["volumes"] else [])
+                        saved = ["operatives"] + (["team metrics"] if xl["team"] else []) + \
+                                (["outcomes"] if xl["outcomes"] else []) + (["half-hour volumes"] if xl["volumes"] else []) + saved
                         commit_operatives(grid_to_values(edited_xl), xl_date,
-                                          f"✅ Pasted update saved for {fmt_day(xl_date)} ({', '.join(parts_saved)}). "
+                                          f"✅ Pasted update saved for {fmt_day(xl_date)} ({', '.join(saved)}). "
                                           "Copy the save string at the bottom into Secrets.")
+                    else:
+                        touch_last_updated()
+                        st.session_state.flash_msg = ("✅ Year to date saved. "
+                                                      "Copy the save string at the bottom into Secrets.")
+                        st.session_state.editor_ver += 1
+                        st.rerun()
 
         st.divider()
 
