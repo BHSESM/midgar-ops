@@ -290,73 +290,109 @@ def _shade(hex_colour, to, t):
     return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
 
 
-def dragon_portrait_svg(colour, extra=None):
-    """An original chibi dragon wearing a call-centre headset, in the operative's colour.
-    extra: "spots" (cheetah print), "flower", "star", "bow", "shades" or None."""
-    dark = _shade(colour, "#1c0f33", 0.45)
-    light = _shade(colour, "#ffffff", 0.55)
-    cream = "#fff1d6"
-    ink = "#1c0f33"
-    deco = ""
-    shades = ""
-    if extra == "shades":
-        shades = ("<rect x='45' y='63' width='22' height='14' rx='6' fill='#120a20'/>"
-                  "<rect x='73' y='63' width='22' height='14' rx='6' fill='#120a20'/>"
-                  "<path d='M67 68 Q70 65 73 68' stroke='#120a20' stroke-width='2.5' fill='none'/>"
-                  "<path d='M49 66 L56 66' stroke='#ffffff' stroke-opacity='.5' stroke-width='2' stroke-linecap='round'/>"
-                  "<path d='M77 66 L84 66' stroke='#ffffff' stroke-opacity='.5' stroke-width='2' stroke-linecap='round'/>")
-    if extra == "spots":
-        for x, y, rx, ry in [(60, 50, 3.2, 2.4), (74, 46, 2.6, 2), (86, 54, 3, 2.3), (50, 62, 2.4, 2), (92, 66, 2.6, 2),
-                             (52, 124, 3.4, 2.6), (90, 122, 3.2, 2.5), (40, 134, 2.8, 2.2), (100, 136, 3, 2.3)]:
-            deco += f"<ellipse cx='{x}' cy='{y}' rx='{rx}' ry='{ry}' fill='#3b1d08' fill-opacity='.85'/>"
-    elif extra == "flower":
-        cx, cy = 98, 42
-        for dx, dy in [(0, -6), (6, -2), (4, 5), (-4, 5), (-6, -2)]:
-            deco += f"<circle cx='{cx + dx}' cy='{cy + dy}' r='4.6' fill='#ffe3ee' stroke='#ff8fab' stroke-width='1'/>"
-        deco += f"<circle cx='{cx}' cy='{cy}' r='3.4' fill='#ffd23f'/>"
-    elif extra == "bow":
-        deco = ("<path d='M96 40 L84 32 L84 48 Z M96 40 L108 32 L108 48 Z' fill='#ff4d8d' stroke='#ffd0e2' stroke-width='1.2' stroke-linejoin='round'/>"
-                "<circle cx='96' cy='40' r='3.6' fill='#ff9fc2' stroke='#ffd0e2' stroke-width='1'/>")
-    elif extra == "star":
-        deco = "<path d='M100 30 l3 7 7.5 .6 -5.8 4.8 1.9 7.3 -6.6 -4 -6.6 4 1.9 -7.3 -5.8 -4.8 7.5 -.6 z' fill='#ffd23f' stroke='#fff6c9' stroke-width='1'/>"
-    return f"""<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 150' width='140' height='150'>
+def _mirror(path_d):
+    """Mirror an SVG path's x coordinates around x=100 (portraits are drawn symmetrically)."""
+    out, cmd = [], "M"
+    for tok in re.split(r"([A-Za-z])", path_d):
+        if not tok.strip():
+            continue
+        if tok.isalpha():
+            cmd = tok
+            out.append(tok)
+            continue
+        vals = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", tok)]
+        # absolute commands flip around x=100; relative (lower-case) ones just reverse direction
+        flipped = [((-v) if cmd.islower() else (200 - v)) if j % 2 == 0 else v for j, v in enumerate(vals)]
+        out.append(" ".join(f"{v:g}" for v in flipped))
+    return " ".join(out)
+
+
+HORNS = {
+    # left-hand horn paths (mirrored for the right)
+    "swept":  "M84 66 C72 44 62 28 42 14 C52 30 60 46 66 62 C70 70 76 74 84 76 Z",
+    "tall":   "M86 64 C82 48 78 30 74 8 C86 28 92 46 96 62 Z",
+    "ram":    "M76 70 C60 52 36 54 34 76 C33 92 48 100 58 92 C50 90 44 82 48 74 C54 66 64 70 70 80 Z",
+    "spikes": "M84 64 L70 28 L90 60 Z M74 72 L52 44 L80 68 Z M66 84 L40 66 L70 82 Z",
+}
+
+
+def dragon_portrait_svg(main, belly, horn, frill, eye, wing, horns="swept", spots=False):
+    """An original heroic dragon portrait (head, neck, chest and spread wings) – drawn here, not copied."""
+    hi = _shade(main, "#ffffff", 0.35)
+    lo = _shade(main, "#0d0618", 0.55)
+    deep = _shade(main, "#0d0618", 0.75)
+    horn_lo = _shade(horn, "#0d0618", 0.5)
+    wing_lo = _shade(wing, "#0d0618", 0.55)
+    L = {
+        "wing": "M76 148 C62 112 46 82 36 60 L8 16 Q32 46 4 68 Q34 92 12 120 Q44 126 72 152 Z",
+        "bone": "M76 148 C62 112 46 82 36 60 M36 60 L8 16 M36 60 L4 68 M36 60 L12 120",
+        "claw": "M36 60 L30 44 L41 56 Z",
+        "neck_scale": "M78 170 q6 -5 12 0 M74 186 q6 -5 12 0 M70 202 q6 -5 12 0",
+        "frill1": "M62 96 L30 84 L58 110 Z",
+        "frill2": "M66 114 L36 120 L68 126 Z",
+        "brow": "M62 84 C72 82 86 86 97 94 L95 101 C84 96 72 95 64 96 Z",
+        "eye": "M70 104 Q82 96 95 104 Q83 111 70 104 Z",
+        "fang": "M88 148 L91 158 L94 149 Z",
+        "cheek_shadow": "M62 100 C60 116 70 130 80 140 C74 124 70 112 70 100 Z",
+    }
+    R = {k: _mirror(v) for k, v in L.items()}
+    horn_l = HORNS.get(horns, HORNS["swept"])
+    horn_r = _mirror(horn_l)
+    spot_svg = ""
+    if spots:
+        for x, y, rx, ry, rot in [(84, 70, 3.2, 2.2, -20), (116, 70, 3.2, 2.2, 20), (100, 64, 2.6, 2, 0), (74, 82, 2.4, 1.8, -30),
+                                  (126, 82, 2.4, 1.8, 30), (70, 160, 3.6, 2.6, -15), (130, 162, 3.6, 2.6, 15), (62, 182, 3.2, 2.4, -10),
+                                  (138, 184, 3.2, 2.4, 10), (56, 204, 3.6, 2.6, -5), (144, 206, 3.6, 2.6, 5), (108, 128, 2.2, 1.6, 10),
+                                  (92, 128, 2.2, 1.6, -10)]:
+            spot_svg += f"<ellipse cx='{x}' cy='{y}' rx='{rx}' ry='{ry}' transform='rotate({rot} {x} {y})' fill='#2b1406' fill-opacity='.8'/>"
+    plates = "".join(
+        f"<path d='M{100 - w} {y} L{100 + w} {y} L{100 + w + 3} {y + 11} L{100 - w - 3} {y + 11} Z' fill='url(#bl)' stroke='{lo}' stroke-width='1.2'/>"
+        for y, w in [(160, 13), (172, 16), (184, 19), (196, 22), (208, 25)])
+    return f"""<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 220' width='200' height='220'>
 <defs>
- <radialGradient id='bg' cx='.5' cy='.45' r='.7'><stop offset='0' stop-color='{colour}' stop-opacity='.45'/><stop offset='.6' stop-color='#2d1257'/><stop offset='1' stop-color='#170b2e'/></radialGradient>
- <clipPath id='fr'><rect x='4' y='4' width='132' height='142' rx='22'/></clipPath>
+ <radialGradient id='bg' cx='.5' cy='.35' r='.75'><stop offset='0' stop-color='{main}' stop-opacity='.55'/><stop offset='.55' stop-color='#21103d'/><stop offset='1' stop-color='#0d0618'/></radialGradient>
+ <linearGradient id='hd' x1='.2' y1='0' x2='.8' y2='1'><stop offset='0' stop-color='{hi}'/><stop offset='.45' stop-color='{main}'/><stop offset='1' stop-color='{lo}'/></linearGradient>
+ <linearGradient id='nk' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{main}'/><stop offset='1' stop-color='{deep}'/></linearGradient>
+ <linearGradient id='wg' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{_shade(wing, "#ffffff", 0.25)}'/><stop offset='.6' stop-color='{wing}'/><stop offset='1' stop-color='{wing_lo}'/></linearGradient>
+ <linearGradient id='hn' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='{_shade(horn, "#ffffff", 0.35)}'/><stop offset='1' stop-color='{horn_lo}'/></linearGradient>
+ <linearGradient id='bl' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{_shade(belly, "#ffffff", 0.25)}'/><stop offset='1' stop-color='{_shade(belly, "#0d0618", 0.25)}'/></linearGradient>
+ <radialGradient id='ey' cx='.5' cy='.5' r='.6'><stop offset='0' stop-color='#ffffff'/><stop offset='.35' stop-color='{eye}'/><stop offset='1' stop-color='{_shade(eye, "#0d0618", 0.4)}'/></radialGradient>
+ <filter id='glow' x='-50%' y='-50%' width='200%' height='200%'><feGaussianBlur stdDeviation='2.2'/></filter>
+ <clipPath id='fr'><rect x='3' y='3' width='194' height='214' rx='24'/></clipPath>
 </defs>
-<rect x='4' y='4' width='132' height='142' rx='22' fill='url(#bg)'/>
+<rect x='3' y='3' width='194' height='214' rx='24' fill='url(#bg)'/>
 <g clip-path='url(#fr)'>
- <path d='M40 84 Q8 70 12 34 Q28 50 42 48 Q36 66 52 76 Z' fill='{dark}' stroke='{colour}' stroke-width='1.5'/>
- <path d='M100 84 Q132 70 128 34 Q112 50 98 48 Q104 66 88 76 Z' fill='{dark}' stroke='{colour}' stroke-width='1.5'/>
- <path d='M22 44 L38 60 M118 44 L102 60' stroke='{colour}' stroke-opacity='.6' stroke-width='1.5'/>
- <ellipse cx='70' cy='138' rx='40' ry='30' fill='{colour}'/>
- <ellipse cx='70' cy='142' rx='21' ry='22' fill='{cream}' fill-opacity='.9'/>
- <path d='M54 128 Q70 132 86 128 M52 138 Q70 142 88 138' stroke='{dark}' stroke-opacity='.35' stroke-width='1.5' fill='none'/>
- <path d='M48 50 Q40 30 47 18 Q52 32 59 45 Z' fill='{cream}' stroke='{dark}' stroke-width='1'/>
- <path d='M92 50 Q100 30 93 18 Q88 32 81 45 Z' fill='{cream}' stroke='{dark}' stroke-width='1'/>
- <ellipse cx='70' cy='74' rx='37' ry='33' fill='{colour}'/>
- <ellipse cx='70' cy='60' rx='22' ry='10' fill='#ffffff' fill-opacity='.12'/>
- <ellipse cx='70' cy='89' rx='21' ry='14' fill='{light}'/>
- <ellipse cx='64' cy='86' rx='2' ry='1.6' fill='{dark}'/>
- <ellipse cx='76' cy='86' rx='2' ry='1.6' fill='{dark}'/>
- <path d='M62 95 Q70 101 78 95' stroke='{ink}' stroke-width='2' fill='none' stroke-linecap='round'/>
- <ellipse cx='56' cy='70' rx='8.5' ry='9.5' fill='#ffffff'/>
- <ellipse cx='84' cy='70' rx='8.5' ry='9.5' fill='#ffffff'/>
- <circle cx='57.5' cy='72' r='4.8' fill='{ink}'/>
- <circle cx='82.5' cy='72' r='4.8' fill='{ink}'/>
- <circle cx='59.5' cy='69.5' r='1.7' fill='#ffffff'/>
- <circle cx='84.5' cy='69.5' r='1.7' fill='#ffffff'/>
- <ellipse cx='44' cy='84' rx='5.5' ry='3.2' fill='#ff6f91' fill-opacity='.45'/>
- <ellipse cx='96' cy='84' rx='5.5' ry='3.2' fill='#ff6f91' fill-opacity='.45'/>
- {deco}
- {shades}
- <path d='M33 66 Q70 22 107 66' stroke='#2a2438' stroke-width='5' fill='none' stroke-linecap='round'/>
- <rect x='26' y='60' width='13' height='20' rx='6' fill='#2a2438' stroke='{light}' stroke-width='1.5'/>
- <rect x='101' y='60' width='13' height='20' rx='6' fill='#2a2438' stroke='{light}' stroke-width='1.5'/>
- <path d='M32 78 Q36 99 56 99' stroke='#2a2438' stroke-width='3' fill='none' stroke-linecap='round'/>
- <circle cx='58' cy='99' r='3.8' fill='#ffd23f' stroke='#2a2438' stroke-width='1'/>
+ <path d='{L["wing"]}' fill='url(#wg)' stroke='{wing_lo}' stroke-width='1.5'/>
+ <path d='{R["wing"]}' fill='url(#wg)' stroke='{wing_lo}' stroke-width='1.5'/>
+ <path d='{L["claw"]}' fill='{horn}'/><path d='{R["claw"]}' fill='{horn}'/>
+ <path d='{L["bone"]}' stroke='{_shade(wing, "#ffffff", 0.25)}' stroke-width='2.2' fill='none' stroke-linecap='round'/>
+ <path d='{R["bone"]}' stroke='{_shade(wing, "#ffffff", 0.25)}' stroke-width='2.2' fill='none' stroke-linecap='round'/>
+ <path d='M70 128 C62 162 50 190 28 224 L172 224 C150 190 138 162 130 128 Z' fill='url(#nk)' stroke='{deep}' stroke-width='1.5'/>
+ <path d='M60 150 L52 140 L58 158 Z M54 172 L44 164 L52 180 Z M48 194 L36 188 L46 202 Z' fill='{frill}'/>
+ <path d='M140 150 L148 140 L142 158 Z M146 172 L156 164 L148 180 Z M152 194 L164 188 L154 202 Z' fill='{frill}'/>
+ <path d='{L["neck_scale"]}' stroke='{deep}' stroke-opacity='.6' stroke-width='1.5' fill='none'/>
+ <path d='{R["neck_scale"]}' stroke='{deep}' stroke-opacity='.6' stroke-width='1.5' fill='none'/>
+ {plates}
+ <path d='{L["frill1"]}' fill='{frill}'/><path d='{R["frill1"]}' fill='{frill}'/>
+ <path d='{L["frill2"]}' fill='{frill}' fill-opacity='.85'/><path d='{R["frill2"]}' fill='{frill}' fill-opacity='.85'/>
+ <path d='{horn_l}' fill='url(#hn)' stroke='{horn_lo}' stroke-width='1.2'/>
+ <path d='{horn_r}' fill='url(#hn)' stroke='{horn_lo}' stroke-width='1.2'/>
+ <path d='M100 54 C122 54 138 66 142 84 C146 100 138 112 128 124 C122 136 118 148 112 158 Q100 166 88 158 C82 148 78 136 72 124 C62 112 54 100 58 84 C62 66 78 54 100 54 Z' fill='url(#hd)' stroke='{deep}' stroke-width='1.5'/>
+ <path d='M94 58 L100 42 L106 58 Z M97 70 L100 60 L103 70 Z' fill='{frill}'/>
+ <path d='{L["cheek_shadow"]}' fill='{deep}' fill-opacity='.35'/><path d='{R["cheek_shadow"]}' fill='{deep}' fill-opacity='.35'/>
+ <path d='M100 94 C110 94 116 112 115 140 Q100 152 85 140 C84 112 90 94 100 94 Z' fill='{hi}' fill-opacity='.35'/>
+ <path d='M100 98 L100 140' stroke='{deep}' stroke-opacity='.25' stroke-width='1.2'/>
+ {spot_svg}
+ <path d='{L["eye"]}' fill='{eye}' filter='url(#glow)' opacity='.9'/><path d='{R["eye"]}' fill='{eye}' filter='url(#glow)' opacity='.9'/>
+ <path d='{L["eye"]}' fill='url(#ey)' stroke='#0d0618' stroke-width='1.2'/><path d='{R["eye"]}' fill='url(#ey)' stroke='#0d0618' stroke-width='1.2'/>
+ <ellipse cx='83' cy='103.5' rx='1.8' ry='4.6' fill='#0d0618'/><ellipse cx='117' cy='103.5' rx='1.8' ry='4.6' fill='#0d0618'/>
+ <circle cx='86' cy='101.5' r='1.3' fill='#ffffff'/><circle cx='120' cy='101.5' r='1.3' fill='#ffffff'/>
+ <path d='{L["brow"]}' fill='{lo}' stroke='{deep}' stroke-width='1'/><path d='{R["brow"]}' fill='{lo}' stroke='{deep}' stroke-width='1'/>
+ <path d='M92 150 Q94 147 96 150 M104 150 Q106 147 108 150' stroke='#0d0618' stroke-width='2' fill='none' stroke-linecap='round'/>
+ <path d='M74 128 Q86 148 100 152 Q114 148 126 128' stroke='{deep}' stroke-width='2' fill='none'/>
+ <path d='{L["fang"]}' fill='#fff8e8'/><path d='{R["fang"]}' fill='#fff8e8'/>
 </g>
-<rect x='4' y='4' width='132' height='142' rx='22' fill='none' stroke='{colour}' stroke-width='3.5'/>
+<rect x='3' y='3' width='194' height='214' rx='24' fill='none' stroke='{main}' stroke-width='3.5'/>
 </svg>"""
 
 
@@ -412,15 +448,21 @@ st.markdown(f"""
 # Operatives and their dragon colours. To use your own pictures instead, replace an entry in
 # AVATARS with an image link (e.g. "https://..."); everything else keeps working.
 OPERATIVES = [
-    # (dashboard name, colour, extra detail on their dragon)
-    ("Sophie (Hunter)", "#ffb347", "spots"),
-    ("Bryan (Spyro)", "#ef5b5b", None),
-    ("Jo (Zoe)", "#ff8fab", "flower"),
-    ("Amy (Nestor)", "#4cc9f0", "star"),
-    ("Alisia (Elora)", "#2ec4b6", "bow"),
-    ("Victor (Magnus)", "#7bd389", "shades"),
+    # (dashboard name, chart colour, dragon design)
+    ("Sophie (Hunter)", "#ffb347", dict(main="#e8a23a", belly="#f6dca0", horn="#f3e6c4", frill="#5a3412",
+                                        eye="#7bd389", wing="#b8742a", horns="tall", spots=True)),
+    ("Bryan (Spyro)", "#ef5b5b", dict(main="#c8333b", belly="#e8b27a", horn="#4a4250", frill="#3a3340",
+                                      eye="#ffd23f", wing="#7a1d2a", horns="spikes")),
+    ("Jo (Zoe)", "#ff8fab", dict(main="#e7739a", belly="#f7d6e4", horn="#f6eef2", frill="#b98ad9",
+                                 eye="#c77dff", wing="#a84874", horns="swept")),
+    ("Amy (Nestor)", "#4cc9f0", dict(main="#3aa6dd", belly="#cfe9f7", horn="#e9c25a", frill="#e8f2ff",
+                                     eye="#ffd23f", wing="#1f5f8a", horns="ram")),
+    ("Alisia (Elora)", "#2ec4b6", dict(main="#1fb3a3", belly="#bff0e6", horn="#c98b4a", frill="#0f6b5f",
+                                       eye="#ffb347", wing="#12706a", horns="swept")),
+    ("Victor (Magnus)", "#7bd389", dict(main="#3fae5a", belly="#d6eeb4", horn="#3b3742", frill="#c9a227",
+                                        eye="#ff9f1c", wing="#1f6b36", horns="tall")),
 ]
-AVATARS = {name: svg_uri(dragon_portrait_svg(col, extra)) for name, col, extra in OPERATIVES}
+AVATARS = {name: svg_uri(dragon_portrait_svg(**design)) for name, _, design in OPERATIVES}
 OPERATIVE_COLOURS = {name: col for name, col, _ in OPERATIVES}
 
 BOSS_IMG = svg_uri(boss_crystal_svg())
