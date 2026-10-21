@@ -164,6 +164,10 @@ st.markdown("""
         transition: transform 0.4s ease;
     }
     .crest img:hover { transform: scale(1.08) rotate(-3deg); }
+    .crest-wrap { position: relative; display: inline-block; }
+    .crest-leaf, .crest-pump { position: absolute; font-size: 26px; pointer-events: none; }
+    .crest-leaf { left: -14px; top: -6px; transform: rotate(-20deg); }
+    .crest-pump { right: -12px; bottom: 0; }
 
     /* Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
@@ -290,6 +294,27 @@ def _shade(hex_colour, to, t):
     return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
 
 
+def _maple_leaf(x, y, size, rot, colour):
+    d = ("M0 -10 L2.5 -4 L8 -6 L6 0 L10 2 L4 4 L5 9 L0 6 L-5 9 L-4 4 L-10 2 L-6 0 L-8 -6 L-2.5 -4 Z")
+    return (f"<g transform='translate({x} {y}) rotate({rot}) scale({size})'>"
+            f"<path d='{d}' fill='{colour}' stroke='#5a1e08' stroke-width='.8'/>"
+            f"<path d='M0 -7 L0 11' stroke='#5a1e08' stroke-width='.9'/></g>")
+
+
+def _jack_o_lantern(x, y, size=1.0):
+    return (f"<g transform='translate({x} {y}) scale({size})'>"
+            "<path d='M-1 -14 Q1 -20 5 -20' stroke='#3c6b2a' stroke-width='3' fill='none' stroke-linecap='round'/>"
+            "<ellipse cx='-7' cy='0' rx='9' ry='13' fill='#e8731f'/><ellipse cx='7' cy='0' rx='9' ry='13' fill='#e8731f'/>"
+            "<ellipse cx='0' cy='0' rx='9' ry='14' fill='#f28a2e' stroke='#a8460c' stroke-width='1'/>"
+            "<path d='M-9 -4 L-5 -9 L-2 -4 Z M9 -4 L5 -9 L2 -4 Z' fill='#ffd23f'/>"
+            "<path d='M-10 4 Q0 12 10 4 L7 6 L5 3 L2 7 L0 4 L-2 7 L-5 3 L-7 6 Z' fill='#ffd23f'/></g>")
+
+
+AUTUMN_FRAME = (_maple_leaf(16, 18, 1.5, -25, "#e8731f") + _maple_leaf(30, 10, 1.0, 20, "#c8402c")
+                + _maple_leaf(184, 18, 1.5, 25, "#d9a03f") + _maple_leaf(170, 10, 1.0, -15, "#e8731f")
+                + _jack_o_lantern(178, 198, 1.05))
+
+
 def _mirror(path_d):
     """Mirror an SVG path's x coordinates around x=100 (portraits are drawn symmetrically)."""
     out, cmd = [], "M"
@@ -393,6 +418,7 @@ def dragon_portrait_svg(main, belly, horn, frill, eye, wing, horns="swept", spot
  <path d='{L["fang"]}' fill='#fff8e8'/><path d='{R["fang"]}' fill='#fff8e8'/>
 </g>
 <rect x='3' y='3' width='194' height='214' rx='24' fill='none' stroke='{main}' stroke-width='3.5'/>
+{AUTUMN_FRAME}
 </svg>"""
 
 
@@ -418,35 +444,76 @@ def boss_crystal_svg():
 </svg>"""
 
 
-BACKGROUND_HILLS_SVG = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 400' preserveAspectRatio='none'>
-<path d='M0 260 Q200 170 420 230 T860 210 T1280 220 T1600 190 L1600 400 L0 400 Z' fill='#2a1247' fill-opacity='.85'/>
-<path d='M0 320 Q260 250 520 300 T1040 290 T1600 280 L1600 400 L0 400 Z' fill='#1a0a30'/>
-</svg>"""
+def _bare_tree(x, base, h, flip=1):
+    """A simple spooky bare tree silhouette."""
+    t = (f"M{x} {base} C{x + 4} {base - h * .4} {x - 2} {base - h * .7} {x + 2} {base - h} "
+         f"M{x + 1} {base - h * .55} C{x + 14 * flip} {base - h * .7} {x + 22 * flip} {base - h * .78} {x + 30 * flip} {base - h * .95} "
+         f"M{x + 1} {base - h * .7} C{x - 12 * flip} {base - h * .8} {x - 18 * flip} {base - h * .9} {x - 24 * flip} {base - h * 1.05} "
+         f"M{x + 2} {base - h * .85} C{x + 8 * flip} {base - h * .95} {x + 12 * flip} {base - h * 1.02} {x + 16 * flip} {base - h * 1.12} "
+         f"M{x + 16 * flip} {base - h * .78} L{x + 20 * flip} {base - h * .68}")
+    return f"<path d='{t}' stroke='#1d0b33' stroke-width='4' fill='none' stroke-linecap='round'/>"
 
-# Sky backdrop: dusk gradient, twinkling stars and rolling hills (all original, nothing to download)
+
+def _bat(x, y, s=1.0):
+    return (f"<path transform='translate({x} {y}) scale({s})' d='M0 0 Q-8 -10 -22 -6 Q-16 -2 -16 4 Q-10 0 -6 4 Q-3 -2 0 2 "
+            f"Q3 -2 6 4 Q10 0 16 4 Q16 -2 22 -6 Q8 -10 0 0 Z' fill='#140821'/>")
+
+
+BACKGROUND_HILLS_SVG = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 400' preserveAspectRatio='none'>"
+    "<path d='M0 260 Q200 170 420 230 T860 210 T1280 220 T1600 190 L1600 400 L0 400 Z' fill='#2a1247' fill-opacity='.85'/>"
+    + _bare_tree(70, 238, 62) + _bare_tree(1530, 200, 66, -1) + _bare_tree(1460, 206, 44)
+    + "<path d='M0 320 Q260 250 520 300 T1040 290 T1600 280 L1600 400 L0 400 Z' fill='#1a0a30'/>"
+    + "".join(f"<ellipse cx='{x}' cy='{y}' rx='9' ry='7' fill='#e8731f'/><path d='M{x} {y - 7} l1 -4' stroke='#3c6b2a' stroke-width='2'/>"
+              for x, y in [(36, 350), (54, 354), (1566, 330)])
+    + "</svg>")
+
+BATS_SVG = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 300' preserveAspectRatio='xMidYMid slice'>"
+            + _bat(1180, 70, 1.4) + _bat(1260, 110, 1.0) + _bat(1110, 130, 0.8) + _bat(260, 90, 1.1) + _bat(330, 60, 0.8)
+            + "</svg>")
+
+# Sky backdrop: autumn dusk, harvest moon, bats, stars and hills with bare trees (all original, nothing to download)
 st.markdown(f"""
     <style>
     .stApp {{
         background:
             url('{svg_uri(BACKGROUND_HILLS_SVG)}') bottom center / 100% 34vh no-repeat,
+            url('{svg_uri(BATS_SVG)}') top center / 100% 32vh no-repeat,
+            radial-gradient(circle at 96% 40%, rgba(255, 232, 168, 0.8) 0, rgba(255, 207, 107, 0.7) 2.6%, rgba(255, 159, 28, 0.2) 3%, transparent 8%),
             radial-gradient(1.5px 1.5px at 12% 18%, #fff6c9 60%, transparent 61%),
             radial-gradient(1.2px 1.2px at 28% 9%, #ffffff 60%, transparent 61%),
             radial-gradient(1.8px 1.8px at 47% 22%, #fff6c9 60%, transparent 61%),
             radial-gradient(1.2px 1.2px at 63% 12%, #ffffff 60%, transparent 61%),
-            radial-gradient(1.6px 1.6px at 78% 26%, #fff6c9 60%, transparent 61%),
-            radial-gradient(1.2px 1.2px at 91% 8%, #ffffff 60%, transparent 61%),
+            radial-gradient(1.2px 1.2px at 91% 30%, #ffffff 60%, transparent 61%),
             radial-gradient(1.4px 1.4px at 6% 41%, #ffffff 60%, transparent 61%),
-            radial-gradient(1.4px 1.4px at 85% 44%, #fff6c9 60%, transparent 61%),
-            radial-gradient(ellipse at 80% 12%, rgba(255, 210, 63, 0.25), transparent 40%),
-            linear-gradient(180deg, #160a33 0%, #2d1257 38%, #6b2a6f 68%, #c2566b 88%, #f2a65a 100%);
+            linear-gradient(180deg, #140a2e 0%, #2b1150 34%, #5e2366 60%, #b2483f 84%, #e8862e 100%);
         background-attachment: fixed;
     }}
+    /* A few leaves drifting down the page (they never block clicks) */
+    .leaf-fall {{ position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }}
+    .leaf-fall span {{
+        position: absolute; top: -40px; font-size: 22px; opacity: .55;
+        animation: leaf-drop linear infinite;
+    }}
+    @keyframes leaf-drop {{
+        0%   {{ transform: translate(0, -40px) rotate(0deg); }}
+        25%  {{ transform: translate(40px, 25vh) rotate(90deg); }}
+        50%  {{ transform: translate(-20px, 50vh) rotate(180deg); }}
+        75%  {{ transform: translate(30px, 75vh) rotate(270deg); }}
+        100% {{ transform: translate(-10px, 105vh) rotate(360deg); }}
+    }}
     </style>
+    <div class="leaf-fall">
+      <span style="left:6%;animation-duration:19s;animation-delay:-3s;">🍂</span>
+      <span style="left:21%;animation-duration:24s;animation-delay:-11s;">🍁</span>
+      <span style="left:38%;animation-duration:21s;animation-delay:-6s;font-size:18px;">🍂</span>
+      <span style="left:57%;animation-duration:26s;animation-delay:-15s;">🍁</span>
+      <span style="left:73%;animation-duration:20s;animation-delay:-1s;font-size:18px;">🍂</span>
+      <span style="left:90%;animation-duration:23s;animation-delay:-9s;">🍁</span>
+    </div>
 """, unsafe_allow_html=True)
 
 # --- 4. MASTER CONFIG, AVATARS & TIMEFRAMES ---
-# Operatives and their dragon colours. To use your own pictures instead, replace an entry in
-# AVATARS with an image link (e.g. "https://..."); everything else keeps working.
+# Operatives, their chart colours and their built-in dragon designs.
 OPERATIVES = [
     # (dashboard name, chart colour, dragon design)
     ("Sophie (Hunter)", "#ffb347", dict(main="#e8a23a", belly="#f6dca0", horn="#f3e6c4", frill="#5a3412",
@@ -462,7 +529,41 @@ OPERATIVES = [
     ("Victor (Magnus)", "#7bd389", dict(main="#3fae5a", belly="#d6eeb4", horn="#3b3742", frill="#c9a227",
                                         eye="#ff9f1c", wing="#1f6b36", horns="tall")),
 ]
-AVATARS = {name: svg_uri(dragon_portrait_svg(**design)) for name, _, design in OPERATIVES}
+# Character pictures (hosted on your GitHub). Swap a link to change someone's picture.
+# If a link ever stops working, that person falls back to their built-in dragon automatically.
+PHOTO_BASE = "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/"
+PHOTOS = {
+    "Sophie (Hunter)": PHOTO_BASE + "Hunter-Sophie.png",
+    "Bryan (Spyro)": PHOTO_BASE + "Bryan.png",
+    "Jo (Zoe)": PHOTO_BASE + "Zoe%20-%20Jo.png",
+    "Amy (Nestor)": PHOTO_BASE + "Nestor%20-%20Amy.png",
+    "Alisia (Elora)": PHOTO_BASE + "Elora%20-%20Ali.png",
+    "Victor (Magnus)": PHOTO_BASE + "Magnus%20-%20Victor.png",
+}
+DRAGONS = {name: svg_uri(dragon_portrait_svg(**design)) for name, _, design in OPERATIVES}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def picture_loads(url):
+    """True if the picture link works (checked at most once an hour)."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "dragon-realms-ops"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+AVATARS = {name: (PHOTOS[name] if PHOTOS.get(name) and picture_loads(PHOTOS[name]) else DRAGONS[name])
+           for name in DRAGONS}
+
+
+def avatar_img(name, attrs=""):
+    """<img> for an operative, falling back to their built-in dragon if the picture can't load."""
+    fallback = DRAGONS.get(name, "")
+    return (f"<img src='{AVATARS.get(name, fallback)}' crossorigin='anonymous' "
+            f"onerror=\"this.onerror=null;this.src='{fallback}'\" {attrs}>")
 OPERATIVE_COLOURS = {name: col for name, col, _ in OPERATIVES}
 
 BOSS_IMG = svg_uri(boss_crystal_svg())
@@ -1570,8 +1671,11 @@ BRIEF_CSS = """
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .card { background: rgba(34,18,58,0.9); border: 2px solid; border-radius: 12px; padding: 16px; }
 .card .top { display: flex; gap: 12px; align-items: center; }
-.av { width: 84px; height: 84px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.av img { max-width: 84px; max-height: 84px; width: auto; height: auto; }
+.av { width: 96px; height: 96px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+.av-leaf, .av-pump { position: absolute; font-size: 18px; }
+.av-leaf { left: -6px; top: -4px; transform: rotate(-20deg); }
+.av-pump { right: -6px; bottom: -4px; }
+.av img { max-width: 96px; max-height: 96px; width: auto; height: auto; }
 .card .nm { font-size: 21px; font-weight: bold; }
 .card .rk { font-size: 15px; color: #bbb; }
 .card .lv { font-size: 16px; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; margin-top: 3px; font-weight: bold; }
@@ -1744,7 +1848,7 @@ def build_brief_html(notes_text=""):
 
     parts = []
     hdr_html = (
-        "<div class='hdr'><div class='t'>🐉 DRAGON REALMS OPS · MORNING BRIEF</div>"
+        "<div class='hdr'><div class='t'>🎃 DRAGON REALMS OPS · MORNING BRIEF</div>"
         f"<div class='s'>Data up to {fmt_day(d)}<br>"
         f"Day {elapsed:g} of {total:g} working days"
         + (f" · updated {html.escape(meta['last_updated'])}" if meta.get('last_updated') else "")
@@ -1792,7 +1896,7 @@ def build_brief_html(notes_text=""):
         badges = "".join(f"<span class='badge'>{html.escape(b)}</span>" for b in OPERATIVE_HONORS[name])
         cards += (
             f"<div class='card' style='border-color:{col};'>"
-            f"<div class='top'><div class='av'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'></div>"
+            f"<div class='top'><div class='av'>{avatar_img(name)}<span class='av-leaf'>🍂</span><span class='av-pump'>🎃</span></div>"
             f"<div><div class='nm'>{html.escape(name)}</div><div class='rk'>{html.escape(r['Rank'])}</div>"
             f"<div class='lv'>LVL {r['Level']} · 💎 {r['GIL']:,} Gems</div></div></div>"
             "<div class='g6'>"
@@ -1823,7 +1927,7 @@ def build_brief_html(notes_text=""):
         )
         panels += f"<div class='panel avg'><h4 style='color:{colr};'>{label} (weighted)</h4>{rows}</div>"
     parts.append(f"<div class='sec' id='sec-avgs'><div class='lbl'>📅 Weighted daily averages · data up to {fmt_day(d)}</div><div class='avgs'>{panels}</div></div>")
-    parts.append("<div class='foot'>Dragon Realms Ops · Artisans HQ</div>")
+    parts.append("<div class='foot'>🎃 Happy Halloween from the Dragon Realms · Artisans HQ 🍂</div>")
 
     card_rows = math.ceil(len(STAFF_NAMES) / 3)
     height = 330 + (40 + 28 * len(ups) if ups else 0) + (60 + 22 * notes_text.count(chr(10)) if notes_html else 0) + card_rows * 290 + 2 * (70 + 26 * len(STAFF_NAMES)) + 140
@@ -1874,7 +1978,7 @@ def build_snapshot_html():
     tot_open = sum(snaps[n]["open"] for n in STAFF_NAMES)
     tot_close = sum(snaps[n]["close"] for n in STAFF_NAMES)
     parts = [
-        "<div class='hdr'><div class='t'>⚡ DAILY FLIGHT SNAPSHOT</div>"
+        "<div class='hdr'><div class='t'>🍂 DAILY FLIGHT SNAPSHOT</div>"
         f"<div class='s'>{html.escape(stamp)}</div></div>",
         "<div class='tot'>"
         f"<div><b>{tot_ans}</b>Inbound</div><div><b>{tot_out}</b>Outbound</div>"
@@ -1885,7 +1989,7 @@ def build_snapshot_html():
         s = snaps[name]
         cards += (
             "<div class='sc'>"
-            f"<div class='top'><div class='sav'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'></div><div class='nm'>{html.escape(name)}</div></div>"
+            f"<div class='top'><div class='sav'>{avatar_img(name)}</div><div class='nm'>{html.escape(name)}</div></div>"
             "<table><tr><th>Inbound</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. Gems</th></tr>"
             f"<tr><td>{s['answered']}</td><td style='color:#ffd23f;'>{fmt_pct(s['pct'])}</td><td>{s['outbound']}</td>"
             f"<td style='color:#ff4b4b;'>{s['open']}</td><td style='color:#ffd23f;'>{s['close']}</td>"
@@ -1919,7 +2023,7 @@ def style_fig(fig, height=300):
 # TAB: ACTIVE PARTY VIEW
 # =============================================================================
 with tab_party:
-    st.title("Dragon Realms Operations: MTD Status")
+    st.title("🎃 Dragon Realms Operations: MTD Status")
     st.markdown(f"<div class='data-stamp'>{html.escape(data_stamp_text())}</div>", unsafe_allow_html=True)
     cols = st.columns(3)
 
@@ -1928,7 +2032,8 @@ with tab_party:
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
-                st.markdown(f"<div class='crest'><img src='{AVATARS.get(name, '')}' alt='{html.escape(name)} dragon'></div>",
+                st.markdown(f"<div class='crest'><span class='crest-wrap'>{avatar_img(name, f'alt="{html.escape(name)}"')}"
+                            "<span class='crest-leaf'>🍂</span><span class='crest-pump'>🎃</span></span></div>",
                             unsafe_allow_html=True)
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
 
@@ -1990,6 +2095,7 @@ with tab_brief:
 # =============================================================================
 with tab_boss:
     st.title("👹 Villain Showdown: The Month-End Gauntlet")
+    st.caption("🦇 Halloween special – the villains have crept out with the autumn mist. Don't let them haunt the realms past month end!")
     st.write("Every call and ticket becomes a flame blast or charge attack. Beat Gnasty Gnorc, then Ripto, then The Sorceress before the month ends!")
 
     total_accumulated_exp = sum(get_stats(md[n])["Raw_EXP"] for n in STAFF_NAMES)
@@ -2005,12 +2111,11 @@ with tab_boss:
         p_sub_cols = st.columns(3)
         for idx, name in enumerate(STAFF_NAMES):
             p_res = get_stats(md[name])
-            avatar_link = AVATARS.get(name, "")
             with p_sub_cols[idx % 3]:
                 border_color = hp_colour(p_res["HP_Pct"], 0.75, 0.35)
                 st.markdown(f"""
                     <div style="background: rgba(34, 18, 58, 0.85); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
-                        <img src="{avatar_link}" style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;">
+                        {avatar_img(name, f'style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;"')}
                         <div style="font-weight: bold; font-size: 0.9rem; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {border_color} !important;">{name.split(' ')[0]}</div>
                         <div style="font-size: 0.75rem; color: #aaa;">LVL {p_res['Level']}</div>
                         <div style="font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-size: 0.8rem; font-weight: bold; color: {border_color}; margin-top: 3px;">HP {p_res['HP_Display']}</div>
@@ -2524,7 +2629,7 @@ def build_ytd_html(ytd):
         cards.append((f"{int(ytd['summary']['Jobs supported']):,}", "🔧 Jobs supported"))
     parts.append(
         "<div class='sec' id='sec-yhead'>"
-        "<div class='hdr'><div class='t'>📆 DRAGON REALMS OPS · YEAR TO DATE</div>"
+        "<div class='hdr'><div class='t'>🍁 DRAGON REALMS OPS · YEAR TO DATE</div>"
         f"<div class='s'>{ytd.get('year', '')} · {span}<br>updated {html.escape(str(ytd.get('updated', '—')))}</div></div>"
         "<div class='ycards'>" + "".join(f"<div class='ycard'><b>{b}</b><span>{l}</span></div>" for b, l in cards) + "</div></div>"
     )
@@ -2618,7 +2723,7 @@ def build_ytd_html(ytd):
         f"<div class='star'>🏆 Team's busiest month: <b>{MONTH_NAMES[int(tb) - 1]}</b> with <b>{team_by_month[tb]:,}</b> calls + tickets</div>"
         "</div></div>"
     )
-    parts.append("<div class='foot'>Dragon Realms Ops · Artisans HQ</div>")
+    parts.append("<div class='foot'>🎃 Happy Halloween from the Dragon Realms · Artisans HQ 🍂</div>")
     height = 1900 + 40 * len(people)
     return "".join(parts), height
 
