@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 
 # --- 1. RPG CONFIGURATION & PAGE SETUP ---
 st.set_page_config(
-    page_title="Shinra Ops Dashboard",
+    page_title="Dragon Realms Ops",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -29,27 +29,23 @@ def now_uk():
     return datetime.now(UK_TZ)
 
 
-# --- 2. THE ULTIMATE WEAPON CSS (FULL PRODUCTION VERSION) ---
+# --- 2. DRAGON REALMS THEME CSS ---
 # Note on the keyed containers (bounty cards / battle HUD): Streamlit gives a container created with
 # st.container(key="x") a CSS class of "st-key-x". The attribute selector is repeated four times purely
 # to out-rank the glass-morphism rule below so these boxes keep their own look.
 st.markdown("""
     <style>
-    /* Backdrop & Layout */
-    .stApp {
-        background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)),
-                    url('https://github.com/BHSESM/midgar-ops/blob/main/BG.jpg?raw=true');
-        background-size: cover;
-        background-attachment: fixed;
-        background-position: center;
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
+    html, body, [class*="css"], .stMarkdown, p, span, label, div, button, input, textarea {
+        font-family: 'Fredoka', 'Trebuchet MS', sans-serif;
     }
 
     /* Glass-Morphism HUD Containers */
     div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] {
-        background: rgba(20, 20, 20, 0.75) !important;
+        background: rgba(34, 18, 58, 0.75) !important;
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(0, 255, 204, 0.3) !important;
+        border: 1px solid rgba(255, 210, 63, 0.3) !important;
         border-radius: 20px !important;
         padding: 25px !important;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
@@ -67,8 +63,8 @@ st.markdown("""
     }
     div[data-testid="stTable"] th {
         text-align: center !important;
-        color: #00ffcc !important;
-        border-bottom: 1px solid rgba(0, 255, 204, 0.3) !important;
+        color: #ffd23f !important;
+        border-bottom: 1px solid rgba(255, 210, 63, 0.3) !important;
         padding: 12px !important;
         font-size: 0.9rem !important;
     }
@@ -76,7 +72,7 @@ st.markdown("""
         text-align: center !important;
         padding: 12px !important;
         color: #f0f0f0 !important;
-        font-family: 'Courier New', monospace;
+        font-family: 'Fredoka', 'Trebuchet MS', sans-serif;
     }
 
     /* Mini-Stat Grid (Inside Party Cards) */
@@ -98,15 +94,15 @@ st.markdown("""
     }
     .mini-stat-value {
         display: block;
-        color: #00ffcc !important;
+        color: #ffd23f !important;
         font-weight: bold;
         font-size: 0.8rem;
     }
 
     /* Bounty Board Styling (keyed containers) */
     div[class*="st-key-hud_bounty"][class*="st-key-hud_bounty"][class*="st-key-hud_bounty"][class*="st-key-hud_bounty"] {
-        background: rgba(0, 255, 204, 0.05) !important;
-        border: 1px dashed rgba(0, 255, 204, 0.4) !important;
+        background: rgba(255, 210, 63, 0.05) !important;
+        border: 1px dashed rgba(255, 210, 63, 0.4) !important;
         padding: 20px !important;
         border-radius: 15px !important;
         margin-bottom: 20px;
@@ -116,26 +112,18 @@ st.markdown("""
 
     /* Quest Cards Styling */
     .quest-card {
-        background: rgba(30, 20, 10, 0.45);
-        border: 1px solid #ffcc00;
+        background: rgba(50, 24, 70, 0.55);
+        border: 1px solid #ff9f1c;
         border-radius: 12px;
         padding: 18px;
         margin-bottom: 15px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.6);
     }
 
-    /* Dual Progress Bars */
-    div[data-testid="stProgress"]:nth-of-type(1) > div > div > div > div {
-        background-color: #00ffcc !important;
-    }
-    div[data-testid="stProgress"]:nth-of-type(2) > div > div > div > div {
-        background-color: #0099ff !important;
-    }
-
     /* Honors & Metrics */
     .award-card {
-        background: rgba(0, 255, 204, 0.1);
-        border: 1px solid rgba(0, 255, 204, 0.4);
+        background: rgba(255, 210, 63, 0.1);
+        border: 1px solid rgba(255, 210, 63, 0.4);
         border-radius: 10px;
         padding: 12px;
         text-align: center;
@@ -155,60 +143,59 @@ st.markdown("""
 
     /* Compact Profile Badge Design */
     .profile-honor-badge {
-        background: rgba(0, 255, 204, 0.12);
-        border: 1px solid rgba(0, 255, 204, 0.6);
+        background: rgba(255, 210, 63, 0.12);
+        border: 1px solid rgba(255, 210, 63, 0.6);
         border-radius: 4px;
-        color: #00ffcc !important;
+        color: #ffd23f !important;
         font-size: 0.68rem !important;
         font-weight: bold;
         text-align: center;
         padding: 3px 6px;
-        box-shadow: 0 0 6px rgba(0, 255, 204, 0.15);
+        box-shadow: 0 0 6px rgba(255, 210, 63, 0.15);
         white-space: nowrap;
     }
 
-    /* Character Images */
-    div[data-testid="stImage"] img {
-        max-height: 135px !important;
-        filter: drop-shadow(0px 0px 12px rgba(0, 255, 204, 0.5));
+    /* Operative crests */
+    .crest { text-align: center; }
+    .crest img {
+        height: 130px;
+        filter: drop-shadow(0px 0px 12px rgba(255, 210, 63, 0.55));
         transition: transform 0.4s ease;
     }
-    div[data-testid="stImage"] img:hover {
-        transform: scale(1.1) rotate(2deg);
-    }
+    .crest img:hover { transform: scale(1.08) rotate(-3deg); }
 
     /* Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
-        background-color: rgba(0, 0, 0, 0.6);
+        background-color: rgba(28, 12, 48, 0.7);
         border-radius: 15px;
         padding: 5px 20px;
     }
     .stTabs [aria-selected="true"] {
-        color: #00ffcc !important;
-        border-bottom: 2px solid #00ffcc !important;
+        color: #ffd23f !important;
+        border-bottom: 2px solid #ffd23f !important;
     }
 
-    [data-testid="stMetricValue"] { color: #00ffcc !important; font-family: 'Courier New', monospace; }
+    [data-testid="stMetricValue"] { color: #ffd23f !important; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 
     /* Expander */
     div[data-testid="stExpander"] {
-        background-color: rgba(30, 30, 30, 0.5) !important;
-        border: 1px solid rgba(0, 255, 204, 0.2) !important;
+        background-color: rgba(40, 22, 68, 0.6) !important;
+        border: 1px solid rgba(255, 210, 63, 0.2) !important;
         border-radius: 10px !important;
         margin-top: 15px !important;
     }
 
     /* Boss Battle CSS (keyed container) */
     div[class*="st-key-hud_battle"][class*="st-key-hud_battle"][class*="st-key-hud_battle"][class*="st-key-hud_battle"] {
-        background: linear-gradient(180deg, rgba(0,0,120,0.85) 0%, rgba(0,0,40,0.95) 100%) !important;
+        background: linear-gradient(180deg, rgba(88,28,135,0.88) 0%, rgba(30,10,55,0.96) 100%) !important;
         border: 3px solid #ffffff !important;
         border-radius: 12px !important;
         padding: 20px !important;
         box-shadow: inset 0 0 15px rgba(255,255,255,0.2), 0 10px 30px rgba(0,0,0,0.9) !important;
-        font-family: 'Courier New', monospace;
+        font-family: 'Fredoka', 'Trebuchet MS', sans-serif;
     }
     .boss-profile-container {
-        background: rgba(10, 10, 10, 0.85);
+        background: rgba(28, 12, 48, 0.9);
         border: 2px solid #ff4b4b;
         border-radius: 15px;
         padding: 20px;
@@ -231,8 +218,8 @@ st.markdown("""
 
     /* Team Spirit Card */
     .spirit-card {
-        background: rgba(0, 255, 204, 0.06);
-        border: 1px solid rgba(0, 255, 204, 0.35);
+        background: rgba(255, 210, 63, 0.06);
+        border: 1px solid rgba(255, 210, 63, 0.35);
         border-radius: 16px;
         padding: 22px;
         margin-bottom: 18px;
@@ -241,8 +228,8 @@ st.markdown("""
     .spirit-stat-big {
         font-size: 2.4rem !important;
         font-weight: bold !important;
-        color: #00ffcc !important;
-        font-family: 'Courier New', monospace;
+        color: #ffd23f !important;
+        font-family: 'Fredoka', 'Trebuchet MS', sans-serif;
         display: block;
         line-height: 1.1;
     }
@@ -255,17 +242,17 @@ st.markdown("""
         display: block;
     }
     .signal-card-ok {
-        background: rgba(0, 255, 204, 0.07);
-        border: 1px solid rgba(0, 255, 204, 0.4);
-        border-left: 4px solid #00ffcc;
+        background: rgba(255, 210, 63, 0.07);
+        border: 1px solid rgba(255, 210, 63, 0.4);
+        border-left: 4px solid #ffd23f;
         border-radius: 10px;
         padding: 14px 18px;
         margin-bottom: 10px;
     }
     .signal-card-warn {
-        background: rgba(255, 204, 0, 0.07);
-        border: 1px solid rgba(255, 204, 0, 0.4);
-        border-left: 4px solid #ffcc00;
+        background: rgba(255, 159, 28, 0.07);
+        border: 1px solid rgba(255, 159, 28, 0.4);
+        border-left: 4px solid #ff9f1c;
         border-radius: 10px;
         padding: 14px 18px;
         margin-bottom: 10px;
@@ -279,42 +266,136 @@ st.markdown("""
         margin-bottom: 10px;
     }
     .data-stamp {
-        font-family: 'Courier New', monospace;
+        font-family: 'Fredoka', 'Trebuchet MS', sans-serif;
         font-size: 0.85rem;
-        color: #9adfd0 !important;
+        color: #d9c2ff !important;
         margin-top: -10px;
         margin-bottom: 14px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. MASTER CONFIG, AVATARS & TIMEFRAMES ---
-AVATARS = {
-    "Sophie (Yuffie)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Yuffie_Kisaragi.png",
-    "Bryan (Cloud)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Cloud_Strife.png",
-    "Jo (Aerith)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Aerith_Gainsborough.png",
-    "Amy (Jessie)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Jessie_from_Final_Fantasy_VII_Remake_render.webp",
-    "Alisia (Tifa)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Tifa_Lockhart_from_FFVII_Remake_promo_render.webp",
-    "Victor (Vincent)": "https://raw.githubusercontent.com/BHSESM/midgar-ops/main/Vincent_Valentine_from_FFVII_Rebirth_promo_render.webp"
-}
+# --- 3. ORIGINAL ARTWORK (built-in SVG, so there are no external image links to break) ---
+import base64
 
-# Direct raw link (not the github.com "?raw=true" redirect) so the screenshot button can capture it.
-SEPHIROTH_IMG = "https://raw.githubusercontent.com/BHSESM/midgar-ops/c0fcf5cc9ab880e330b5d3314d3e10b6afdee8fe/Sephtransp.png"
+
+def svg_uri(svg):
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def gem_crest_svg(initial, colour, dark, pattern=None):
+    """An original crest: a faceted gem on a shield, in the operative's own colour.
+    pattern="spots" adds a cheetah-spot print to the shield."""
+    spots = ""
+    shield_top, shield_bottom = "#3a1f63", "#170b2e"
+    if pattern == "spots":
+        shield_top, shield_bottom = "#d9a03f", "#7a4a12"   # golden coat
+        dots = [(28, 30, 4.5, 3.6), (42, 20, 3, 2.6), (78, 20, 3.2, 2.6), (92, 30, 4.4, 3.4), (101, 46, 3.2, 2.8),
+                (22, 46, 3.4, 2.8), (20, 64, 4.2, 3.4), (102, 64, 4, 3.2), (26, 82, 3.4, 2.8), (96, 82, 3.6, 3),
+                (36, 96, 3, 2.6), (86, 98, 3.2, 2.6), (60, 26, 2.6, 2.2)]
+        spots = "".join(f"<ellipse cx='{x}' cy='{y}' rx='{rx}' ry='{ry}' fill='#2b1406' fill-opacity='.9' "
+                        f"transform='rotate({(x * 7) % 50 - 25} {x} {y})'/>" for x, y, rx, ry in dots)
+    return f"""<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 140' width='120' height='140'>
+<defs>
+ <linearGradient id='sh' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{shield_top}'/><stop offset='1' stop-color='{shield_bottom}'/></linearGradient>
+ <linearGradient id='gm' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#ffffff' stop-opacity='.85'/><stop offset='.35' stop-color='{colour}'/><stop offset='1' stop-color='{dark}'/></linearGradient>
+ <radialGradient id='gl' cx='.5' cy='.45' r='.5'><stop offset='0' stop-color='{colour}' stop-opacity='.55'/><stop offset='1' stop-color='{colour}' stop-opacity='0'/></radialGradient>
+</defs>
+<path d='M60 4 L112 22 L108 82 Q100 116 60 136 Q20 116 12 82 L8 22 Z' fill='url(#sh)' stroke='{colour}' stroke-width='4'/>
+{spots}
+<path d='M60 14 L102 29 L99 80 Q92 109 60 126 Q28 109 21 80 L18 29 Z' fill='none' stroke='#ffd23f' stroke-opacity='.35' stroke-width='1.5'/>
+<circle cx='60' cy='62' r='40' fill='url(#gl)'/>
+<polygon points='36,48 48,34 72,34 84,48 60,90' fill='url(#gm)' stroke='#ffffff' stroke-opacity='.7' stroke-width='1.5'/>
+<polygon points='36,48 84,48 60,90' fill='{dark}' fill-opacity='.45'/>
+<polygon points='48,34 54,48 66,48 72,34' fill='#ffffff' fill-opacity='.35'/>
+<path d='M36 48 L54 48 L60 90 M84 48 L66 48 L60 90 M54 48 L60 34 L66 48' stroke='#ffffff' stroke-opacity='.45' stroke-width='1' fill='none'/>
+<path d='M92 30 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 z' fill='#fff6c9'/>
+<path d='M26 92 l2 4 4 2 -4 2 -2 4 -2 -4 -4 -2 4 -2 z' fill='#fff6c9' fill-opacity='.8'/>
+<rect x='34' y='100' width='52' height='22' rx='11' fill='#170b2e' stroke='{colour}' stroke-width='2'/>
+<text x='60' y='116' text-anchor='middle' font-family='Arial Rounded MT Bold, Arial, sans-serif' font-weight='700' font-size='15' fill='#ffd23f'>{initial}</text>
+</svg>"""
+
+
+def boss_crystal_svg():
+    """An original 'cursed crystal' emblem for the month-end boss."""
+    return """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 180' width='160' height='180'>
+<defs>
+ <radialGradient id='bg' cx='.5' cy='.5' r='.6'><stop offset='0' stop-color='#5b1035'/><stop offset='1' stop-color='#12051f'/></radialGradient>
+ <linearGradient id='cr' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#ff9fd0'/><stop offset='.4' stop-color='#b0175a'/><stop offset='1' stop-color='#3a0a3f'/></linearGradient>
+ <radialGradient id='glow' cx='.5' cy='.55' r='.5'><stop offset='0' stop-color='#ff4b8b' stop-opacity='.65'/><stop offset='1' stop-color='#ff4b8b' stop-opacity='0'/></radialGradient>
+</defs>
+<rect width='160' height='180' rx='18' fill='url(#bg)'/>
+<circle cx='80' cy='95' r='70' fill='url(#glow)'/>
+<polygon points='80,18 104,70 96,150 64,150 56,70' fill='url(#cr)' stroke='#ffb3d9' stroke-width='2'/>
+<polygon points='56,70 38,98 52,140 64,150' fill='#7a1247' stroke='#ffb3d9' stroke-opacity='.6' stroke-width='1.5'/>
+<polygon points='104,70 122,98 108,140 96,150' fill='#5a0d3c' stroke='#ffb3d9' stroke-opacity='.6' stroke-width='1.5'/>
+<path d='M80 18 L80 150 M56 70 L104 70' stroke='#ffd0e8' stroke-opacity='.4' stroke-width='1'/>
+<path d='M72 40 L86 66 L74 84 L90 112 L78 132' stroke='#1a0612' stroke-width='3' fill='none' stroke-linejoin='round'/>
+<path d='M72 40 L86 66 L74 84 L90 112 L78 132' stroke='#ffe14d' stroke-width='1.2' fill='none' stroke-linejoin='round'/>
+<path d='M30 40 L40 52 L34 54 L46 70' stroke='#c77dff' stroke-width='2.5' fill='none' stroke-linejoin='round'/>
+<path d='M132 38 L122 52 L128 54 L116 72' stroke='#c77dff' stroke-width='2.5' fill='none' stroke-linejoin='round'/>
+<ellipse cx='80' cy='160' rx='46' ry='7' fill='#000' fill-opacity='.45'/>
+</svg>"""
+
+
+BACKGROUND_HILLS_SVG = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 400' preserveAspectRatio='none'>
+<path d='M0 260 Q200 170 420 230 T860 210 T1280 220 T1600 190 L1600 400 L0 400 Z' fill='#2a1247' fill-opacity='.85'/>
+<path d='M0 320 Q260 250 520 300 T1040 290 T1600 280 L1600 400 L0 400 Z' fill='#1a0a30'/>
+</svg>"""
+
+# Sky backdrop: dusk gradient, twinkling stars and rolling hills (all original, nothing to download)
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background:
+            url('{svg_uri(BACKGROUND_HILLS_SVG)}') bottom center / 100% 34vh no-repeat,
+            radial-gradient(1.5px 1.5px at 12% 18%, #fff6c9 60%, transparent 61%),
+            radial-gradient(1.2px 1.2px at 28% 9%, #ffffff 60%, transparent 61%),
+            radial-gradient(1.8px 1.8px at 47% 22%, #fff6c9 60%, transparent 61%),
+            radial-gradient(1.2px 1.2px at 63% 12%, #ffffff 60%, transparent 61%),
+            radial-gradient(1.6px 1.6px at 78% 26%, #fff6c9 60%, transparent 61%),
+            radial-gradient(1.2px 1.2px at 91% 8%, #ffffff 60%, transparent 61%),
+            radial-gradient(1.4px 1.4px at 6% 41%, #ffffff 60%, transparent 61%),
+            radial-gradient(1.4px 1.4px at 85% 44%, #fff6c9 60%, transparent 61%),
+            radial-gradient(ellipse at 80% 12%, rgba(255, 210, 63, 0.25), transparent 40%),
+            linear-gradient(180deg, #160a33 0%, #2d1257 38%, #6b2a6f 68%, #c2566b 88%, #f2a65a 100%);
+        background-attachment: fixed;
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 4. MASTER CONFIG, AVATARS & TIMEFRAMES ---
+# Operatives and their crest colours. To use your own pictures instead, replace an entry in
+# AVATARS with an image link (e.g. "https://..."); everything else keeps working.
+OPERATIVES = [
+    # (dashboard name, crest colour, crest shade, pattern)
+    ("Sophie (Hunter)", "#ffb347", "#8a4a05", "spots"),
+    ("Bryan (Spyro)", "#b06cff", "#4a1d8a", None),
+    ("Jo (Zoe)", "#ff8fab", "#8a2346", None),
+    ("Amy (Bianca)", "#4cc9f0", "#155d7a", None),
+    ("Alisia (Sheila)", "#ff9f1c", "#8a4a05", None),
+    ("Victor (Agent 9)", "#7bd389", "#1f6b3a", None),
+]
+AVATARS = {name: svg_uri(gem_crest_svg(name[0], col, dark, pat)) for name, col, dark, pat in OPERATIVES}
+OPERATIVE_COLOURS = {name: col for name, col, _, _ in OPERATIVES}
+
+BOSS_IMG = svg_uri(boss_crystal_svg())
+BACKGROUND_IMG = svg_uri(BACKGROUND_HILLS_SVG)
 
 TITLES = [
-    "Sector 7 Recruit 🧰", "Midgar Mechanic 🔧", "Shinra Support Agent 🖥️",
-    "Turk-in-Training 💼", "Materia Engineer 💠", "Junon Operative ⚙️",
-    "Rocket Town Specialist 🚀", "Nibelheim Technician 🔩", "SOLDIER Tech 3rd Class ⚔️",
-    "SOLDIER Tech 2nd Class ⚔️", "SOLDIER Tech 1st Class ⚔️", "Midgar Hero 🛡️",
-    "Planet's Defender 🌿", "Lifestream Sage 💫", "Ancient of the LAN ✨"
+    "Hatchling 🥚", "Sheep Chaser 🐑", "Gem Hunter 💎",
+    "Flame Breather 🔥", "Glide Rookie 🪽", "Headbash Hero 💥",
+    "Artisans Ally 🎨", "Peace Keeper 🛡️", "Magic Crafter ✨",
+    "Beast Maker 🦎", "Dream Weaver 🌙", "Supercharger ⚡",
+    "Dragon Guardian 🐉", "Realm Protector 🌈", "Legendary Dragon 👑"
 ]
 
 TEAM_TITLES = [
-    ("Sector 7 Survivors", "The party is just getting started. Keep pushing."),
-    ("Midgar Resistance", "The team is finding its rhythm. Avalanche assembles."),
-    ("Avalanche Operatives", "Solid output across the board. The Planet feels it."),
-    ("Elite Strike Force", "The team is firing on all cylinders. Shinra is rattled."),
-    ("Guardians of the Planet", "Legendary performance. The Lifestream flows strong. 🌿"),
+    ("Hatchling Flight", "The flight is just getting started. Spread those wings."),
+    ("Artisans Apprentices", "The team is finding its rhythm. The Realms are stirring."),
+    ("Peace Keepers", "Solid output across the board. Every realm feels it."),
+    ("Magic Crafters", "The team is firing on all cylinders. The villains are rattled."),
+    ("Legends of the Dragon Realms", "Legendary performance. Every gem collected. 💎"),
 ]
 
 SHOP_ITEMS = {
@@ -327,12 +408,12 @@ SHOP_ITEMS = {
 }
 
 SHIFT_WEIGHTS = {
-    "Sophie (Yuffie)": 1.0,
-    "Bryan (Cloud)": 1.0,
-    "Jo (Aerith)": 0.75,
-    "Amy (Jessie)": 1.0,
-    "Alisia (Tifa)": 1.0,
-    "Victor (Vincent)": 0.28
+    "Sophie (Hunter)": 1.0,
+    "Bryan (Spyro)": 1.0,
+    "Jo (Zoe)": 0.75,
+    "Amy (Bianca)": 1.0,
+    "Alisia (Sheila)": 1.0,
+    "Victor (Agent 9)": 0.28
 }
 
 TIME_SLOTS = [
@@ -348,7 +429,7 @@ OUTCOME_KEYS = [
     "Abort D2S", "Abort S2S", "Abort INV", "Abort NC"
 ]
 
-# Team mission targets (used on the Bounty Board, Party Spirit and the Morning Brief)
+# Team mission targets (used on the Quest Board, Flight Spirit and the Morning Brief)
 GOAL_OUT = 500
 GOAL_ANS = 98.0
 MAX_AWOL = 5.0
@@ -369,7 +450,7 @@ REMOVED_FIELDS = ("avg_ans_time", "avg_call_time")
 HIST_FIELDS = ["in", "out", "open", "close", "ans", "awol", "lvl", "exp"]
 HIST_MAX_ENTRIES = 45
 
-LINE_COLORS = ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00", "#c77dff", "#ff8c42"]
+LINE_COLORS = ["#ffb347", "#b06cff", "#ff8fab", "#4cc9f0", "#ff9f1c", "#7bd389"]  # matches each crest
 
 
 # --- 4. CORE ENGINE FUNCTIONS ---
@@ -449,9 +530,18 @@ def calculate_winners(metric, staff_list, high_is_best=True):
         return []
     return [n for n, v in vals.items() if v == target]
 
+def realm_bar(pct, colour="#ffd23f", height=12):
+    """A themed progress bar (Streamlit's own bars can't be recoloured reliably)."""
+    pct = min(1.0, max(0.0, pct or 0))
+    st.markdown(
+        f"<div style='background:rgba(255,255,255,0.12);border-radius:8px;height:{height}px;overflow:hidden;margin:4px 0 12px;'>"
+        f"<div style='width:{pct * 100:.1f}%;height:100%;background:{colour};border-radius:8px;"
+        f"box-shadow:0 0 10px {colour}66;'></div></div>", unsafe_allow_html=True)
+
+
 def hp_colour(pct, hi=0.75, lo=0.40):
-    if pct > hi: return "#00ffcc"
-    if pct > lo: return "#ffcc00"
+    if pct > hi: return "#ffd23f"
+    if pct > lo: return "#ff9f1c"
     return "#ff4b4b"
 
 def fresh_operative():
@@ -569,21 +659,21 @@ def boss_state(total_exp):
     hp = max(0, BOSS_MAX_HP - damage)
     pct = hp / BOSS_MAX_HP
     if pct > 0.50:
-        phase = "Form 1: Sephiroth (SOLDIER Legend)"
-        flavour = "🔮 Sephiroth calmly prepares his blade... 'Is that all the strength the planet has left?'"
+        phase = "Wave 1: Gnasty Gnorc (Gnorc Cove)"
+        flavour = "🟢 Gnasty Gnorc guards his stolen gem hoard... 'You'll never get past my Gnorcs!'"
     elif pct > 0.15:
-        phase = "Form 2: Bizarro Sephiroth (Core Mutation)"
-        flavour = "⚡ The battlefield distorts! Bizarro Sephiroth emerges from the deep energetic Lifestream!"
+        phase = "Wave 2: Ripto (Summer Forest Invasion)"
+        flavour = "⚡ Gnasty falls back – but Ripto storms through the portal with his sceptre blazing!"
     elif pct > 0.0:
-        phase = "FINAL Form: Safer Sephiroth (One-Winged Angel Apex)"
-        flavour = "🌌 CRITICAL! Sephiroth is calling down Supernova! Break his defenses immediately!"
+        phase = "FINAL Wave: The Sorceress (Forgotten Realms)"
+        flavour = "🌌 CRITICAL! The Sorceress is draining the realms' magic! Charge her down before month end!"
     else:
-        phase = "💥 SEPHIROTH DEFEATED 💥"
-        flavour = "✨ VICTORY FANFARE! The planet is secure! Grid colors neutralized."
+        phase = "💥 ALL VILLAINS DEFEATED 💥"
+        flavour = "✨ VICTORY! Every dragon freed, every gem recovered. The Dragon Realms are safe!"
     return {"damage": damage, "hp": hp, "pct": pct, "phase": phase, "flavour": flavour}
 
 def boss_projection(total_exp, d):
-    """Plain-English forecast of when Sephiroth falls at the current pace."""
+    """Plain-English forecast of when the villains fall at the current pace."""
     needed = BOSS_MAX_HP / BOSS_DMG_PER_EXP
     if total_exp >= needed:
         return "💥 Already defeated this month!"
@@ -595,7 +685,7 @@ def boss_projection(total_exp, d):
     for x in month_days(d):
         cum += day_weight(x)
         if cum * rate >= needed:
-            return f"🎯 At this pace Sephiroth falls on {fmt_day(x)}."
+            return f"🎯 At this pace the final villain falls on {fmt_day(x)}."
     proj_pct = min(100, rate * total / needed * 100)
     return f"⚠️ At this pace we'll land {proj_pct:.0f}% of the damage needed – time to turn it up!"
 
@@ -727,7 +817,7 @@ def parse_excel_paste(text, staff_names, today):
                 total_col = c
                 break
             sheet_cols[v] = c
-        # Match sheet first names to dashboard names ("Sophie" -> "Sophie (Yuffie)")
+        # Match sheet first names to dashboard names ("Sophie" -> "Sophie (Hunter)")
         name_map = {}
         for sheet_name, c in sheet_cols.items():
             match = [n for n in staff_names if n.split(" ")[0].lower() == sheet_name.lower()]
@@ -1148,8 +1238,34 @@ def commit_operatives(values, data_for, message):
 
 
 # --- RUNNING INIT SEQUENCING ---
+def migrate_names(data):
+    """Renames operatives saved under an older theme (e.g. "Sophie (Yuffie)") to the current names
+    ("Sophie (Hunter)") by first name, everywhere they appear in the saved data."""
+    by_first = {n.split(" ")[0].lower(): n for n in AVATARS}
+    renames = {}
+    for key, val in list(data.items()):
+        if key in RESERVED_KEYS or not isinstance(val, dict) or "in" not in val:
+            continue
+        new = by_first.get(key.split(" ")[0].lower())
+        if new and new != key and new not in data:
+            renames[key] = new
+    if not renames:
+        return data
+
+    def rekey(d):
+        return {renames.get(k, k): v for k, v in d.items()} if isinstance(d, dict) else d
+
+    data = rekey(data)
+    data["history_log"] = {day: rekey(entry) for day, entry in data.get("history_log", {}).items()}
+    if isinstance(data.get("ytd"), dict):
+        y = data["ytd"]
+        y["months"] = {m: rekey(entry) for m, entry in y.get("months", {}).items()}
+        y["days"] = rekey(y.get("days", {}))
+    return data
+
+
 if "master_data" not in st.session_state:
-    st.session_state.master_data = load_data()
+    st.session_state.master_data = migrate_names(load_data())
 if "editor_ver" not in st.session_state:
     st.session_state.editor_ver = 0
 
@@ -1164,7 +1280,7 @@ for _name, _val in list(md.items()):
     _val.setdefault("spent", 0)
     for _f in REMOVED_FIELDS:
         _val.pop(_f, None)
-    # Keep GIL weighting in step with SHIFT_WEIGHTS everywhere
+    # Keep Gems weighting in step with SHIFT_WEIGHTS everywhere
     _val["weight"] = SHIFT_WEIGHTS.get(_name, _val.get("weight", 1.0))
 
 md.setdefault("volume_stats", {slot: 0 for slot in TIME_SLOTS})
@@ -1188,12 +1304,12 @@ for name in STAFF_NAMES:
     st.session_state.daily_snapshot_data.setdefault(name, blank_snapshot())
 
 HONORS_MAP = [
-    ("📞 Inbound King/Queen", "in", True),
-    ("☎️ Outbound Ace", "out", True),
-    ("📂 Request Opener", "open", True),
-    ("✅ Ticket Crusher", "close", True),
-    ("💯 Comms Master", "ans", True),
-    ("🛡️ Always Ready", "awol", False)
+    ("🔥 Flame Caller", "in", True),
+    ("🪽 Glide Ace", "out", True),
+    ("🥚 Egg Finder", "open", True),
+    ("💥 Charge Closer", "close", True),
+    ("✨ Sparx Shield", "ans", True),
+    ("🛡️ Always Airborne", "awol", False)
 ]
 
 OPERATIVE_HONORS = {name: [] for name in STAFF_NAMES}
@@ -1205,20 +1321,20 @@ for title, key, is_high in HONORS_MAP:
 # --- SCREENSHOT / CAPTURE COMPONENT ---
 CAPTURE_BASE_CSS = """
 * { box-sizing: border-box; }
-body { margin: 0; background: transparent; font-family: 'Segoe UI', Arial, sans-serif; color: #f0f0f0; }
+body { margin: 0; background: transparent; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; color: #f0f0f0; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin: 4px 0 12px; }
 .toolbar button {
-    background: rgba(0,255,204,0.12); color: #00ffcc; border: 1px solid #00ffcc; border-radius: 8px;
-    padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer; font-family: 'Courier New', monospace;
+    background: rgba(255,210,63,0.12); color: #ffd23f; border: 1px solid #ffd23f; border-radius: 8px;
+    padding: 8px 16px; font-weight: bold; font-size: 14px; cursor: pointer; font-family: 'Fredoka', 'Trebuchet MS', sans-serif;
 }
-.toolbar button:hover { background: rgba(0,255,204,0.25); }
+.toolbar button:hover { background: rgba(255,210,63,0.25); }
 #st { color: #ccc; font-size: 13px; }
 .toolbar.sub { flex-wrap: wrap; margin-top: -4px; }
 .toolbar.sub button { font-size: 13px; padding: 6px 12px; }
-.hint { color: #9adfd0; font-size: 13px; }
-.solo { padding: 24px !important; background: #0a0e13; border-radius: 14px; }
-#cap { display: inline-block; background: #0a0e13; padding: 22px; border-radius: 14px; border: 1px solid rgba(0,255,204,0.35); }
-.mono { font-family: 'Courier New', monospace; }
+.hint { color: #d9c2ff; font-size: 13px; }
+.solo { padding: 24px !important; background: #1c0f33; border-radius: 14px; }
+#cap { display: inline-block; background: #1c0f33; padding: 22px; border-radius: 14px; border: 1px solid rgba(255,210,63,0.35); }
+.mono { font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .bar { background: rgba(255,255,255,0.08); border-radius: 4px; height: 9px; overflow: hidden; }
 .bar > div { height: 100%; }
 """
@@ -1231,7 +1347,7 @@ async function render(id) {
   const solo = id && id !== 'cap';
   if (solo) el.classList.add('solo');
   try {
-    return await html2canvas(el, { useCORS: true, backgroundColor: '#0a0e13', scale: 2, logging: false });
+    return await html2canvas(el, { useCORS: true, backgroundColor: '#1c0f33', scale: 2, logging: false });
   } finally {
     if (solo) el.classList.remove('solo');
   }
@@ -1325,6 +1441,7 @@ def capture_component(inner_html, extra_css, height, filename, sections=None, wh
                        "</div>")
     doc = (
         "<!doctype html><html><head><meta charset='utf-8'>"
+        "<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap'>"
         "<script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>"
         f"<style>{CAPTURE_BASE_CSS}{extra_css}</style></head><body>"
         "<div class='toolbar'>"
@@ -1347,56 +1464,56 @@ BRIEF_CSS = """
 #cap { width: 1180px; }
 .sec { margin-bottom: 20px; }
 .sec:last-of-type { margin-bottom: 0; }
-.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(0,255,204,0.35); padding-bottom: 12px; margin-bottom: 18px; }
-.hdr .t { font-size: 32px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; letter-spacing: 1px; }
-.hdr .s { font-size: 16px; color: #9adfd0; font-family: 'Courier New', monospace; text-align: right; line-height: 1.5; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(255,210,63,0.35); padding-bottom: 12px; margin-bottom: 18px; }
+.hdr .t { font-size: 27px; font-weight: bold; white-space: nowrap; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; letter-spacing: 1px; }
+.hdr .s { font-size: 16px; color: #d9c2ff; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; text-align: right; line-height: 1.5; }
 .row { display: flex; gap: 16px; margin-bottom: 18px; }
-.panel { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-radius: 12px; padding: 16px 18px; }
-.lbl { font-size: 14px; color: #8a9; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
-.team { font-size: 28px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; }
+.panel { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,210,63,0.25); border-radius: 12px; padding: 16px 18px; }
+.lbl { font-size: 14px; color: #b9a6dd; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+.team { font-size: 28px; font-weight: bold; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .flav { font-size: 15px; color: #bbb; font-style: italic; margin-top: 4px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .chip { border-radius: 16px; padding: 4px 12px; font-size: 15px; }
-.chip.ok { background: rgba(0,255,204,0.14); border: 1px solid rgba(0,255,204,0.6); color: #00ffcc; }
+.chip.ok { background: rgba(255,210,63,0.14); border: 1px solid rgba(255,210,63,0.6); color: #ffd23f; }
 .chip.no { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.2); color: #999; }
 .boss { display: flex; gap: 16px; align-items: center; }
 .boss img { height: 110px; width: auto; border-radius: 8px; border: 2px solid #ff4b4b; }
-.lvlups { background: rgba(255,204,0,0.08); border: 1px solid rgba(255,204,0,0.55); border-radius: 12px; padding: 12px 18px; }
-.lvlups .h { color: #ffcc00; font-weight: bold; font-size: 18px; margin-bottom: 4px; }
+.lvlups { background: rgba(255,159,28,0.08); border: 1px solid rgba(255,159,28,0.55); border-radius: 12px; padding: 12px 18px; }
+.lvlups .h { color: #ff9f1c; font-weight: bold; font-size: 18px; margin-bottom: 4px; }
 .lvlups .i { font-size: 17px; color: #f0f0f0; margin: 4px 0; }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.card { background: rgba(20,20,20,0.9); border: 2px solid; border-radius: 12px; padding: 16px; }
+.card { background: rgba(34,18,58,0.9); border: 2px solid; border-radius: 12px; padding: 16px; }
 .card .top { display: flex; gap: 12px; align-items: center; }
 .av { width: 84px; height: 84px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .av img { max-width: 84px; max-height: 84px; width: auto; height: auto; }
 .card .nm { font-size: 21px; font-weight: bold; }
 .card .rk { font-size: 15px; color: #bbb; }
-.card .lv { font-size: 16px; color: #00ffcc; font-family: 'Courier New', monospace; margin-top: 3px; font-weight: bold; }
+.card .lv { font-size: 16px; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; margin-top: 3px; font-weight: bold; }
 .g6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; background: rgba(0,0,0,0.45); border-radius: 8px; padding: 10px 2px; margin: 12px 0 10px; }
 .g6 div { text-align: center; font-size: 12px; color: #999; }
-.g6 b { display: block; color: #00ffcc; font-size: 18px; font-family: 'Courier New', monospace; }
+.g6 b { display: block; color: #ffd23f; font-size: 18px; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .badges { display: flex; flex-wrap: wrap; gap: 5px; min-height: 24px; margin-bottom: 8px; }
-.badge { font-size: 12px; color: #00ffcc; border: 1px solid rgba(0,255,204,0.6); border-radius: 4px; padding: 2px 6px; }
-.bl { display: flex; justify-content: space-between; font-size: 14px; color: #bbb; margin: 8px 0 4px; font-family: 'Courier New', monospace; }
+.badge { font-size: 12px; color: #ffd23f; border: 1px solid rgba(255,210,63,0.6); border-radius: 4px; padding: 2px 6px; }
+.bl { display: flex; justify-content: space-between; font-size: 14px; color: #bbb; margin: 8px 0 4px; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .bar { height: 11px; }
 .avgs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-.avg h4 { margin: 0 0 10px; font-size: 18px; font-family: 'Courier New', monospace; }
+.avg h4 { margin: 0 0 10px; font-size: 18px; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .ar { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 16px; }
 .ar .n { width: 78px; color: #ddd; }
 .ar .bar { flex: 1; height: 16px; }
-.ar .v { width: 40px; text-align: right; font-family: 'Courier New', monospace; font-weight: bold; font-size: 18px; }
-.foot { margin-top: 16px; font-size: 12px; color: #667; text-align: center; font-family: 'Courier New', monospace; }
+.ar .v { width: 40px; text-align: right; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-weight: bold; font-size: 18px; }
+.foot { margin-top: 16px; font-size: 12px; color: #667; text-align: center; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 """
 
 NOTES_CSS = """
 .notes .greet { font-size: 24px; font-weight: bold; color: #f0f0f0; margin-bottom: 12px; }
 .notes .para { font-size: 17px; color: #ddd; margin: 0 0 12px; line-height: 1.5; }
 .nsecs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 12px; }
-.nsec { background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,204,0.25); border-left: 5px solid #00ffcc; border-radius: 12px; padding: 14px 18px; }
-.nsec h5 { margin: 0 0 10px; font-size: 20px; color: #00ffcc; }
+.nsec { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,210,63,0.25); border-left: 5px solid #ffd23f; border-radius: 12px; padding: 14px 18px; }
+.nsec h5 { margin: 0 0 10px; font-size: 20px; color: #ffd23f; }
 .nsec ul { margin: 0; padding-left: 20px; }
 .nsec li { font-size: 17px; color: #e6e6e6; line-height: 1.5; margin: 5px 0; }
-.nsec li b, .notes .para b { color: #ffcc00; }
+.nsec li b, .notes .para b { color: #ff9f1c; }
 """
 
 BULLET_RE = re.compile(r"^\s*(?:[*•\-–·▪◦]|\d+[.)])(?:\s+|$)")
@@ -1541,7 +1658,7 @@ def build_brief_html(notes_text=""):
 
     parts = []
     hdr_html = (
-        "<div class='hdr'><div class='t'>⚔️ MIDGAR OPS · MORNING BRIEF</div>"
+        "<div class='hdr'><div class='t'>🐉 DRAGON REALMS OPS · MORNING BRIEF</div>"
         f"<div class='s'>Data up to {fmt_day(d)}<br>"
         f"Day {elapsed:g} of {total:g} working days"
         + (f" · updated {html.escape(meta['last_updated'])}" if meta.get('last_updated') else "")
@@ -1553,17 +1670,17 @@ def build_brief_html(notes_text=""):
         team_hdr = ""
     else:
         team_hdr = hdr_html
-    boss_col = "#ff4b4b" if boss["hp"] > 0 else "#00ffcc"
+    boss_col = "#ff4b4b" if boss["hp"] > 0 else "#ffd23f"
     team_parts = [team_hdr]
     team_parts.append(
         "<div class='row'>"
-        "<div class='panel'><div class='lbl'>Party designation</div>"
+        "<div class='panel'><div class='lbl'>Flight designation</div>"
         f"<div class='team'>{html.escape(ov['title'])}</div><div class='flav'>{html.escape(ov['flavour'])}</div>"
         f"<div class='chips'>{chips}</div>"
         f"<div class='flav' style='margin-top:8px;'>Outbound pace check: target by now ≈ {pace_out}, actual {ov['total_out']}</div></div>"
         "<div class='panel'><div class='boss'>"
-        f"<img src='{SEPHIROTH_IMG}' crossorigin='anonymous'>"
-        "<div style='flex:1;'><div class='lbl'>Month-end boss</div>"
+        f"<img src='{BOSS_IMG}' crossorigin='anonymous'>"
+        "<div style='flex:1;'><div class='lbl'>Month-end villains</div>"
         f"<div style='color:{boss_col};font-weight:bold;font-size:19px;'>{html.escape(boss['phase'])}</div>"
         f"<div class='bl'><span>HP</span><span>{boss['hp']:,} / {BOSS_MAX_HP:,}</span></div>"
         f"<div class='bar' style='height:12px;'><div style='width:{boss['pct']*100:.1f}%;background:{boss_col};'></div></div>"
@@ -1591,22 +1708,22 @@ def build_brief_html(notes_text=""):
             f"<div class='card' style='border-color:{col};'>"
             f"<div class='top'><div class='av'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'></div>"
             f"<div><div class='nm'>{html.escape(name)}</div><div class='rk'>{html.escape(r['Rank'])}</div>"
-            f"<div class='lv'>LVL {r['Level']} · 💰 {r['GIL']:,} GIL</div></div></div>"
+            f"<div class='lv'>LVL {r['Level']} · 💎 {r['GIL']:,} Gems</div></div></div>"
             "<div class='g6'>"
             f"<div>IN<b>{s['in']}</b></div><div>OUT<b>{s['out']}</b></div>"
             f"<div>OPEN<b>{s['open']}</b></div><div>CLOSE<b>{s['close']}</b></div>"
             f"<div>ANS%<b>{s['ans']}%</b></div><div>AWOL<b>{s['awol']}m</b></div></div>"
             f"<div class='badges'>{badges}</div>"
-            f"<div class='bl'><span>❤️ HP</span><span>{r['HP_Display']}</span></div>"
+            f"<div class='bl'><span>✨ Sparx (HP)</span><span>{r['HP_Display']}</span></div>"
             f"<div class='bar'><div style='width:{r['HP_Pct']*100:.1f}%;background:{col};'></div></div>"
             f"<div class='bl'><span>💠 EXP</span><span>{r['Next_XP']} to next</span></div>"
-            f"<div class='bar'><div style='width:{r['EXP_Pct']*100:.1f}%;background:#0099ff;'></div></div>"
+            f"<div class='bar'><div style='width:{r['EXP_Pct']*100:.1f}%;background:#4cc9f0;'></div></div>"
             "</div>"
         )
-    parts.append(f"<div class='sec' id='sec-party'><div class='lbl'>⚔️ The party · data up to {fmt_day(d)}</div><div class='cards'>{cards}</div></div>")
+    parts.append(f"<div class='sec' id='sec-party'><div class='lbl'>🐉 The flight · data up to {fmt_day(d)}</div><div class='cards'>{cards}</div></div>")
 
-    avg_specs = [("Avg Inbound / day", "avg_in", "#00ffcc"), ("Avg Outbound / day", "avg_out", "#0099ff"),
-                 ("Avg Tickets Opened / day", "avg_open", "#ff4b4b"), ("Avg Tickets Closed / day", "avg_close", "#ffcc00")]
+    avg_specs = [("Avg Inbound / day", "avg_in", "#ffd23f"), ("Avg Outbound / day", "avg_out", "#4cc9f0"),
+                 ("Avg Tickets Opened / day", "avg_open", "#ff4b4b"), ("Avg Tickets Closed / day", "avg_close", "#ff9f1c")]
     all_avgs = {n: get_daily_averages(n, md[n]) for n in STAFF_NAMES}
     panels = ""
     for label, key, colr in avg_specs:
@@ -1620,7 +1737,7 @@ def build_brief_html(notes_text=""):
         )
         panels += f"<div class='panel avg'><h4 style='color:{colr};'>{label} (weighted)</h4>{rows}</div>"
     parts.append(f"<div class='sec' id='sec-avgs'><div class='lbl'>📅 Weighted daily averages · data up to {fmt_day(d)}</div><div class='avgs'>{panels}</div></div>")
-    parts.append("<div class='foot'>Shinra Ops Dashboard · Avalanche HQ</div>")
+    parts.append("<div class='foot'>Dragon Realms Ops · Artisans HQ</div>")
 
     card_rows = math.ceil(len(STAFF_NAMES) / 3)
     height = 330 + (40 + 28 * len(ups) if ups else 0) + (60 + 22 * notes_text.count(chr(10)) if notes_html else 0) + card_rows * 290 + 2 * (70 + 26 * len(STAFF_NAMES)) + 140
@@ -1629,21 +1746,21 @@ def build_brief_html(notes_text=""):
 
 SNAP_CSS = """
 #cap { width: 1180px; }
-.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(0,255,204,0.35); padding-bottom: 12px; margin-bottom: 16px; }
-.hdr .t { font-size: 24px; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; }
-.hdr .s { font-size: 13px; color: #9adfd0; font-family: 'Courier New', monospace; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid rgba(255,210,63,0.35); padding-bottom: 12px; margin-bottom: 16px; }
+.hdr .t { font-size: 24px; font-weight: bold; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
+.hdr .s { font-size: 13px; color: #d9c2ff; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .tot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-.tot div { background: rgba(0,255,204,0.06); border: 1px solid rgba(0,255,204,0.3); border-radius: 10px; text-align: center; padding: 10px; font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
-.tot b { display: block; font-size: 26px; color: #00ffcc; font-family: 'Courier New', monospace; letter-spacing: 0; }
+.tot div { background: rgba(255,210,63,0.06); border: 1px solid rgba(255,210,63,0.3); border-radius: 10px; text-align: center; padding: 10px; font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+.tot b { display: block; font-size: 26px; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; letter-spacing: 0; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.sc { background: rgba(20,20,20,0.9); border: 1px solid rgba(0,255,204,0.5); border-radius: 12px; padding: 14px; }
+.sc { background: rgba(34,18,58,0.9); border: 1px solid rgba(255,210,63,0.5); border-radius: 12px; padding: 14px; }
 .sc .top { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
-.sav { width: 64px; height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid #00ffcc; border-radius: 8px; background: rgba(0,0,0,0.5); }
+.sav { width: 64px; height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid #ffd23f; border-radius: 8px; background: rgba(0,0,0,0.5); }
 .sav img { max-width: 56px; max-height: 56px; width: auto; height: auto; }
 .sc .nm { font-size: 19px; font-weight: bold; }
 table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; }
-th { background: rgba(0,255,204,0.15); color: #00ffcc; padding: 6px; border: 1px solid rgba(255,255,255,0.1); }
-td { padding: 8px; border: 1px solid rgba(255,255,255,0.1); font-family: 'Courier New', monospace; font-weight: bold; font-size: 16px; background: rgba(0,0,0,0.35); }
+th { background: rgba(255,210,63,0.15); color: #ffd23f; padding: 6px; border: 1px solid rgba(255,255,255,0.1); }
+td { padding: 8px; border: 1px solid rgba(255,255,255,0.1); font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-weight: bold; font-size: 16px; background: rgba(0,0,0,0.35); }
 """
 
 def snapshot_gil(name, snap):
@@ -1671,7 +1788,7 @@ def build_snapshot_html():
     tot_open = sum(snaps[n]["open"] for n in STAFF_NAMES)
     tot_close = sum(snaps[n]["close"] for n in STAFF_NAMES)
     parts = [
-        "<div class='hdr'><div class='t'>⚡ DAILY TACTICAL SNAPSHOT</div>"
+        "<div class='hdr'><div class='t'>⚡ DAILY FLIGHT SNAPSHOT</div>"
         f"<div class='s'>{html.escape(stamp)}</div></div>",
         "<div class='tot'>"
         f"<div><b>{tot_ans}</b>Inbound</div><div><b>{tot_out}</b>Outbound</div>"
@@ -1683,10 +1800,10 @@ def build_snapshot_html():
         cards += (
             "<div class='sc'>"
             f"<div class='top'><div class='sav'><img src='{AVATARS.get(name, '')}' crossorigin='anonymous'></div><div class='nm'>{html.escape(name)}</div></div>"
-            "<table><tr><th>Inbound</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. GIL</th></tr>"
-            f"<tr><td>{s['answered']}</td><td style='color:#00ffcc;'>{fmt_pct(s['pct'])}</td><td>{s['outbound']}</td>"
-            f"<td style='color:#ff4b4b;'>{s['open']}</td><td style='color:#00ffcc;'>{s['close']}</td>"
-            f"<td style='color:#ffcc00;'>💰 {snapshot_gil(name, s)}</td></tr></table></div>"
+            "<table><tr><th>Inbound</th><th>Ans %</th><th>Outbound</th><th>SD Opened</th><th>SD Closed</th><th>Proj. Gems</th></tr>"
+            f"<tr><td>{s['answered']}</td><td style='color:#ffd23f;'>{fmt_pct(s['pct'])}</td><td>{s['outbound']}</td>"
+            f"<td style='color:#ff4b4b;'>{s['open']}</td><td style='color:#ffd23f;'>{s['close']}</td>"
+            f"<td style='color:#ff9f1c;'>💎 {snapshot_gil(name, s)}</td></tr></table></div>"
         )
     parts.append(f"<div class='grid'>{cards}</div>")
     height = 300 + math.ceil(len(shown) / 2) * 175
@@ -1697,9 +1814,9 @@ def style_fig(fig, height=300):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=40, b=10), height=height,
-        legend=dict(font=dict(color="#aaa", family="Courier New"), bgcolor="rgba(0,0,0,0)"),
-        xaxis=dict(tickfont=dict(color="#00ffcc", family="Courier New"), gridcolor="rgba(0,255,204,0.06)", title=None),
-        yaxis=dict(tickfont=dict(color="#aaa", family="Courier New"), gridcolor="rgba(0,255,204,0.08)", title=None),
+        legend=dict(font=dict(color="#aaa", family="Fredoka"), bgcolor="rgba(0,0,0,0)"),
+        xaxis=dict(tickfont=dict(color="#ffd23f", family="Fredoka"), gridcolor="rgba(255,210,63,0.06)", title=None),
+        yaxis=dict(tickfont=dict(color="#aaa", family="Fredoka"), gridcolor="rgba(255,210,63,0.08)", title=None),
     )
     return fig
 
@@ -1707,16 +1824,16 @@ def style_fig(fig, height=300):
 # --- TABS ---
 (tab_party, tab_brief, tab_boss, tab_missions, tab_quests, tab_snapshot, tab_overview,
  tab_charts, tab_trends, tab_ytd, tab_spirit, tab_heat, tab_shop, tab_admin) = st.tabs([
-    "⚔️ Active Party", "📣 Morning Brief", "🔥 Sephiroth Boss Battle", "📜 Team Missions", "🐉 Side Quests",
-    "⚡ Daily Snapshot", "📊 Tactical Overview", "📈 Performance Charts", "📉 Trends", "📆 Year to Date",
-    "🌟 Party Spirit", "🔥 Mako Heatmap", "💰 Wall Market", "🔐 Admin"
+    "🐉 Active Flight", "📣 Morning Brief", "👹 Villain Showdown", "📜 Team Missions", "🥚 Egg Hunts",
+    "⚡ Daily Snapshot", "📊 Realm Overview", "📈 Performance Charts", "📉 Trends", "📆 Year to Date",
+    "🌟 Flight Spirit", "🌀 Portal Traffic", "💎 Moneybags' Shop", "🔐 Admin"
 ])
 
 # =============================================================================
 # TAB: ACTIVE PARTY VIEW
 # =============================================================================
 with tab_party:
-    st.title("Midgar Operations: MTD Status")
+    st.title("Dragon Realms Operations: MTD Status")
     st.markdown(f"<div class='data-stamp'>{html.escape(data_stamp_text())}</div>", unsafe_allow_html=True)
     cols = st.columns(3)
 
@@ -1725,7 +1842,8 @@ with tab_party:
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
-                st.image(AVATARS.get(name))
+                st.markdown(f"<div class='crest'><img src='{AVATARS.get(name, '')}' alt='{html.escape(name)} crest'></div>",
+                            unsafe_allow_html=True)
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
 
                 st.markdown(f"""
@@ -1744,18 +1862,18 @@ with tab_party:
                 badge_html_buffer = "".join(f'<div class="profile-honor-badge">{badge}</div>' for badge in OPERATIVE_HONORS[name])
                 st.markdown(f"""
                     <div class="profile-honors-flex-container">
-                        {badge_html_buffer if badge_html_buffer else '<span style="color:#555; font-size:0.75rem; font-style:italic;">No Active Honors</span>'}
+                        {badge_html_buffer if badge_html_buffer else '<span style="color:#555; font-size:0.75rem; font-style:italic;">No honours yet</span>'}
                     </div>
                 """, unsafe_allow_html=True)
 
-                st.write(f"❤️ Vitality (HP): {res['HP_Display']}")
-                st.progress(res["HP_Pct"])
+                st.write(f"✨ Sparx Health (HP): {res['HP_Display']}")
+                realm_bar(res["HP_Pct"], hp_colour(res["HP_Pct"]))
                 st.write(f"💠 Next Level: {res['Next_XP']} EXP needed")
-                st.progress(res["EXP_Pct"])
+                realm_bar(res["EXP_Pct"], "#4cc9f0")
 
                 mc1, mc2 = st.columns(2)
                 mc1.metric("Level", res["Level"])
-                mc2.metric("Wallet", f"💰 {res['GIL']}")
+                mc2.metric("Wallet", f"💎 {res['GIL']}")
 
 
 # =============================================================================
@@ -1775,29 +1893,29 @@ with tab_brief:
                    "Notes are never saved – they clear when the page is refreshed. Press Ctrl+Enter to update the image.")
     brief_html, brief_height = build_brief_html(st.session_state.get("brief_notes", ""))
     brief_sections = ([("📰 News", "sec-news")] if "id='sec-news'" in brief_html else []) + [
-        ("🎯 Missions & Boss", "sec-team"), ("⚔️ Party", "sec-party"), ("📅 Averages", "sec-avgs")]
+        ("🎯 Missions & Villains", "sec-team"), ("🐉 Flight", "sec-party"), ("📅 Averages", "sec-avgs")]
     capture_component(brief_html, BRIEF_CSS + NOTES_CSS, brief_height,
-                      f"midgar-brief-{get_data_date().isoformat()}.png",
+                      f"dragon-realms-brief-{get_data_date().isoformat()}.png",
                       sections=[(sid, lbl) for lbl, sid in brief_sections])
 
 
 # =============================================================================
-# TAB: SEPHIROTH BOSS BATTLE
+# TAB: VILLAIN SHOWDOWN (BOSS BATTLE)
 # =============================================================================
 with tab_boss:
-    st.title("🔥 Destiny's Crossroads: The Final Month-End Showdown")
-    st.write("Frontline operational volume is automatically channelled into physical damage outputs to bring down the legendary One-Winged Angel.")
+    st.title("👹 Villain Showdown: The Month-End Gauntlet")
+    st.write("Every call and ticket becomes a flame blast or charge attack. Beat Gnasty Gnorc, then Ripto, then The Sorceress before the month ends!")
 
     total_accumulated_exp = sum(get_stats(md[n])["Raw_EXP"] for n in STAFF_NAMES)
     boss = boss_state(total_accumulated_exp)
     damage_dealt = boss["damage"]
-    sephiroth_current_hp = boss["hp"]
-    sephiroth_hp_pct = boss["pct"]
+    boss_current_hp = boss["hp"]
+    boss_hp_pct = boss["pct"]
 
     b_col1, b_col2 = st.columns([1.2, 1])
 
     with b_col1:
-        st.subheader("⚔️ Frontline Party Formations")
+        st.subheader("🐉 The Flight in Formation")
         p_sub_cols = st.columns(3)
         for idx, name in enumerate(STAFF_NAMES):
             p_res = get_stats(md[name])
@@ -1805,45 +1923,45 @@ with tab_boss:
             with p_sub_cols[idx % 3]:
                 border_color = hp_colour(p_res["HP_Pct"], 0.75, 0.35)
                 st.markdown(f"""
-                    <div style="background: rgba(15, 15, 15, 0.8); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
+                    <div style="background: rgba(34, 18, 58, 0.85); border: 2px solid {border_color}; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 15px;">
                         <img src="{avatar_link}" style="max-height: 80px; filter: drop-shadow(0 0 6px {border_color}); object-fit: contain;">
                         <div style="font-weight: bold; font-size: 0.9rem; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {border_color} !important;">{name.split(' ')[0]}</div>
                         <div style="font-size: 0.75rem; color: #aaa;">LVL {p_res['Level']}</div>
-                        <div style="font-family: 'Courier New', monospace; font-size: 0.8rem; font-weight: bold; color: {border_color}; margin-top: 3px;">HP {p_res['HP_Display']}</div>
+                        <div style="font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-size: 0.8rem; font-weight: bold; color: {border_color}; margin-top: 3px;">HP {p_res['HP_Display']}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
     with b_col2:
-        st.subheader("🔮 The Arch-Nemesis Target")
+        st.subheader("👹 Current Villain")
         st.markdown(f"""
             <div class="boss-profile-container">
-                <img src="{SEPHIROTH_IMG}" style="max-height: 180px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #ff4b4b; box-shadow: 0 0 12px rgba(255,75,75,0.5);">
+                <img src="{BOSS_IMG}" style="max-height: 180px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #ff4b4b; box-shadow: 0 0 12px rgba(255,75,75,0.5);">
                 <h3 style="margin:0; color:#ff4b4b !important;">{boss['phase']}</h3>
-                <p style="font-size: 0.85rem; color: #888; margin: 4px 0;">Threat Status: Threat Level Omega</p>
-                <div style="font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: bold; color: #ff4b4b; margin: 10px 0;">
-                    HP: {sephiroth_current_hp:,} / {BOSS_MAX_HP:,}
+                <p style="font-size: 0.85rem; color: #888; margin: 4px 0;">Threat level: Realm-wide</p>
+                <div style="font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-size: 1.3rem; font-weight: bold; color: #ff4b4b; margin: 10px 0;">
+                    HP: {boss_current_hp:,} / {BOSS_MAX_HP:,}
                 </div>
             </div>
         """, unsafe_allow_html=True)
-        st.progress(sephiroth_hp_pct)
-        st.markdown(f"<p style='text-align: center; font-style: italic; color: #ffcc00 !important;'>{boss['flavour']}</p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center; color: #9adfd0 !important;'>{boss_projection(total_accumulated_exp, get_data_date())}</p>", unsafe_allow_html=True)
+        realm_bar(boss_hp_pct, "#ff4b4b", 16)
+        st.markdown(f"<p style='text-align: center; font-style: italic; color: #ff9f1c !important;'>{boss['flavour']}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center; color: #d9c2ff !important;'>{boss_projection(total_accumulated_exp, get_data_date())}</p>", unsafe_allow_html=True)
 
     st.divider()
 
-    st.subheader("🖥️ Shinra Command HUD Battlefield Log")
+    st.subheader("📜 Battle Log")
     with st.container(key="hud_battle"):
         h_r1, h_r2, h_r3 = st.columns([2, 1, 3])
-        with h_r1: st.markdown("<span style='color: #00ffcc; font-weight: bold;'>PARTY MEMBERS IN POSITION</span>", unsafe_allow_html=True)
-        with h_r2: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
-        with h_r3: st.markdown("<span style='color: #00ffcc; font-weight: bold; display: block; text-align: right;'>VITALITY CAPACITY SHIELD (HP)</span>", unsafe_allow_html=True)
+        with h_r1: st.markdown("<span style='color: #ffd23f; font-weight: bold;'>DRAGONS IN FLIGHT</span>", unsafe_allow_html=True)
+        with h_r2: st.markdown("<span style='color: #ffd23f; font-weight: bold; display: block; text-align: center;'>LEVEL STATUS</span>", unsafe_allow_html=True)
+        with h_r3: st.markdown("<span style='color: #ffd23f; font-weight: bold; display: block; text-align: right;'>SPARX HEALTH (HP)</span>", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
 
         for name in STAFF_NAMES:
             p_res = get_stats(md[name])
             if p_res["Current_HP_Raw"] == 0: hp_color_hex = "#ff4b4b"
-            elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#00ffcc"
-            else: hp_color_hex = "#ffcc00"
+            elif p_res["HP_Pct"] > 0.35: hp_color_hex = "#ffd23f"
+            else: hp_color_hex = "#ff9f1c"
 
             r_c1, r_c2, r_c3 = st.columns([2, 1, 3])
             with r_c1:
@@ -1861,22 +1979,22 @@ with tab_boss:
                 """, unsafe_allow_html=True)
 
         st.markdown("<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
-        st.markdown(f"<p style='margin:0; font-size:0.95rem; color:#aaa;'>💬 <strong>TACTICAL SENSORS REPORT:</strong> Total Month-To-Date collective damage output computed at <strong>{damage_dealt:,} points</strong>. Target Sephiroth has sustained <strong>{(1.0 - sephiroth_hp_pct)*100:.1f}%</strong> volume degradation from direct frontline encounters.</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='margin:0; font-size:0.95rem; color:#aaa;'>💬 <strong>SPARX REPORTS:</strong> Total Month-To-Date collective damage output computed at <strong>{damage_dealt:,} points</strong>. The villains have taken <strong>{(1.0 - boss_hp_pct)*100:.1f}%</strong> of their total health in damage from the flight.</p>", unsafe_allow_html=True)
 
 
 # =============================================================================
 # TAB: TEAM MISSIONS & BOUNTIES
 # =============================================================================
 with tab_missions:
-    st.title("📜 Sector 7 Bounty Board")
+    st.title("📜 Artisans Quest Board")
     elapsed_days, total_days = month_progress(get_data_date())
     st.caption(f"Month progress: day {elapsed_days:g} of {total_days:g} working days (Saturdays count as half a day).")
 
     total_out = sum(md[n]["out"] for n in STAFF_NAMES)
     with st.container(key="hud_bounty_out"):
-        st.subheader("⚔️ TEAM MISSION: Clear the Communications Jam")
+        st.subheader("⚔️ TEAM MISSION: Light Up the Lines")
         st.write(f"Objective: Reach a collective **{GOAL_OUT}** Outbound calls this month.")
-        st.progress(min(1.0, total_out / GOAL_OUT))
+        realm_bar(min(1.0, total_out / GOAL_OUT))
         if total_out >= GOAL_OUT: st.success(f"✅ MISSION COMPLETE! Total: {total_out}")
         elif total_out >= (GOAL_OUT * 0.5): st.info(f"🔵 ON TRACK: {total_out} / {GOAL_OUT} calls reached.")
         else: st.warning(f"⚠️ PUSH NEEDED: Only {total_out} calls logged so far.")
@@ -1888,27 +2006,27 @@ with tab_missions:
 
     avg_ans = sum(md[n]["ans"] for n in STAFF_NAMES) / len(STAFF_NAMES) if STAFF_NAMES else 100.0
     with st.container(key="hud_bounty_ans"):
-        st.subheader("🛡️ TEAM MISSION: The Perfect Guard")
+        st.subheader("🛡️ TEAM MISSION: Sparx Stays Gold")
         st.write(f"Objective: Maintain a collective **{GOAL_ANS}%** Answer Rate average.")
-        st.progress(avg_ans / 100.0)
+        realm_bar(avg_ans / 100.0)
         if avg_ans >= GOAL_ANS: st.success(f"✅ MISSION SECURE: Current average is {avg_ans:.1f}%")
         elif avg_ans >= 95.0: st.warning(f"⚠️ WARNING: Average has dropped to {avg_ans:.1f}%")
         else: st.error(f"❌ CRITICAL: Average is below safety threshold at {avg_ans:.1f}%")
 
     total_awol = round(sum(md[n]["awol"] for n in STAFF_NAMES), 1)
     with st.container(key="hud_bounty_awol"):
-        st.subheader("🐌 TEAM MISSION: Stay in the Fight")
+        st.subheader("🐌 TEAM MISSION: Stay Airborne")
         st.write(f"Objective: The entire team shares a **{int(MAX_AWOL)} minute** total AWOL pool.")
-        st.progress(min(1.0, total_awol / MAX_AWOL))
+        realm_bar(min(1.0, total_awol / MAX_AWOL), "#ff9f1c")
         if total_awol <= MAX_AWOL: st.success(f"✅ STAMINA REMAINING: {total_awol}m used. Pool has {MAX_AWOL - total_awol:.1f}m left.")
         else: st.error(f"❌ MISSION FAILED: Total AWOL is {total_awol}m ({total_awol - MAX_AWOL:.1f}m over limit).")
 
     sla_pct = float(md["team_stats"]["sla_pct"])
     with st.container(key="hud_bounty_sla"):
-        st.subheader("📋 TEAM MISSION: Hold the Line on SLA")
+        st.subheader("📋 TEAM MISSION: Guard the Dragon Eggs (SLA)")
         st.write(f"Objective: Keep SD Tickets Within SLA at **{GOAL_SLA}%** or above.")
         scaled_sla_progress = min(1.0, max(0.0, (sla_pct - 80.0) / 20.0)) if sla_pct > 80.0 else 0.0
-        st.progress(scaled_sla_progress)
+        realm_bar(scaled_sla_progress)
         if sla_pct >= GOAL_SLA: st.success(f"✅ SLA HOLDING: Currently at {sla_pct:.1f}% — target met.")
         elif sla_pct >= 88.0: st.warning(f"⚠️ SLIPPING: SLA is at {sla_pct:.1f}% — push to reach {GOAL_SLA}%.")
         else: st.error(f"❌ SLA BREACH: Currently at {sla_pct:.1f}% — immediate action needed.")
@@ -1917,21 +2035,21 @@ with tab_missions:
 # TAB: SIDE QUEST CHRONICLES BOARD
 # =============================================================================
 with tab_quests:
-    st.title("🐉 Tavern Side Quests Bulletin")
+    st.title("🥚 Egg Hunt Board")
     st.write("Track active offline operations and view historical rewards logged by the team.")
 
     sq_col1, sq_col2 = st.columns(2)
 
     with sq_col1:
-        st.subheader("📌 Currently Dispatched on Side Quests")
+        st.subheader("📌 Out on an Egg Hunt")
         active_found = False
         for name in STAFF_NAMES:
             aq = md[name].get("active_quest", {})
             if aq and aq.get("title"):
                 active_found = True
                 st.markdown(f"""
-                    <div class="quest-card" style="border-left: 5px solid #00ffcc;">
-                        <span style="float:right; color:#00ffcc; font-weight:bold;">⏳ ACTIVE</span>
+                    <div class="quest-card" style="border-left: 5px solid #ffd23f;">
+                        <span style="float:right; color:#ffd23f; font-weight:bold;">⏳ ACTIVE</span>
                         <h4 style="margin:0; color:#fff;">{html.escape(aq['title'])}</h4>
                         <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Operative: <strong>{name}</strong></p>
                         <p style="margin:4px 0; font-size:0.85rem;">Allocated Duration: <strong>{aq['minutes']} mins</strong></p>
@@ -1939,10 +2057,10 @@ with tab_quests:
                     </div>
                 """, unsafe_allow_html=True)
         if not active_found:
-            st.info("All operatives are currently deployed on the frontline desk.")
+            st.info("Everyone's on the main desk – no egg hunts running.")
 
     with sq_col2:
-        st.subheader("✅ Completed Quest Chronicles Log")
+        st.subheader("✅ Eggs Recovered")
         quest_year = get_data_date().year
         completed_quests_list = []
         for name in STAFF_NAMES:
@@ -1950,9 +2068,9 @@ with tab_quests:
                 completed_quests_list.append({
                     "time_sort": parse_quest_time(q, quest_year),
                     "html": f"""
-                        <div class="quest-card" style="border-left: 5px solid #ffcc00;">
-                            <span style="float:right; color:#ffcc00; font-weight:bold; text-align:right;">
-                                💠 +{q['simulated_exp']} EXP<br>💰 +{q['gil_reward']} GIL
+                        <div class="quest-card" style="border-left: 5px solid #ff9f1c;">
+                            <span style="float:right; color:#ff9f1c; font-weight:bold; text-align:right;">
+                                💠 +{q['simulated_exp']} EXP<br>💎 +{q['gil_reward']} Gems
                             </span>
                             <h4 style="margin:0; color:#fff;">{html.escape(q['title'])}</h4>
                             <p style="margin:4px 0; font-size:0.9rem; color:#aaa;">Completed by: <strong>{name}</strong></p>
@@ -1965,18 +2083,18 @@ with tab_quests:
             for q_card in sorted(completed_quests_list, key=lambda x: x["time_sort"], reverse=True):
                 st.markdown(q_card["html"], unsafe_allow_html=True)
         else:
-            st.write("No historical side quests recorded for this tactical frame.")
+            st.write("No egg hunts completed yet this month.")
 
 # =============================================================================
 # TAB: DAILY SNAPSHOT HUD
 # =============================================================================
 with tab_snapshot:
-    st.title("⚡ Daily Tactical Snapshot Node")
+    st.title("⚡ Daily Flight Snapshot")
     st.caption("In-day numbers only – these are not saved and reset when the page is refreshed. Press **Copy image** to paste into Teams. "
                "Anyone with no numbers yet (e.g. on leave) is left out of the image.")
     snap_html, snap_height = build_snapshot_html()
     capture_component(snap_html, SNAP_CSS, snap_height,
-                      f"midgar-snapshot-{now_uk().strftime('%Y-%m-%d-%H%M')}.png")
+                      f"dragon-realms-snapshot-{now_uk().strftime('%Y-%m-%d-%H%M')}.png")
 
     with st.expander("🛠️ Open Operational Data Entry Terminal", expanded=False):
         st.write("Edit any cell, then commit once.")
@@ -2004,7 +2122,7 @@ with tab_snapshot:
                 "SD Closed": st.column_config.NumberColumn(min_value=0, step=1, format="%d"),
             },
         )
-        if st.button("🚀 Mass-Commit Daily Snapshots to Runtime Memory"):
+        if st.button("🚀 Update Today's Snapshot"):
             for n, row in edited_snap.iterrows():
                 st.session_state.daily_snapshot_data[n].update({
                     "answered": int(row["Inbound"] or 0),
@@ -2025,15 +2143,15 @@ with tab_snapshot:
         daily_rows_matrix.append({
             "Operative": name, "Inbound": snap_item["answered"], "Answer Rate": fmt_pct(snap_item["pct"]),
             "Outbound Calls": snap_item["outbound"], "SD Opened": snap_item["open"], "SD Closed": snap_item["close"],
-            "Projected Daily GIL": f"💰 {snapshot_gil(name, snap_item)}"
+            "Projected Daily Gems": f"💎 {snapshot_gil(name, snap_item)}"
         })
     st.table(pd.DataFrame(daily_rows_matrix))
 
 # =============================================================================
-# TAB: TACTICAL OVERVIEW
+# TAB: REALM OVERVIEW
 # =============================================================================
 with tab_overview:
-    st.title("📊 Tactical Command Overview")
+    st.title("📊 Realm Overview")
     st.markdown(f"<div class='data-stamp'>{html.escape(data_stamp_text())}</div>", unsafe_allow_html=True)
     st.subheader("📋 MTD Raw Stats")
     data_rows = []
@@ -2043,7 +2161,7 @@ with tab_overview:
         data_rows.append({
             "Operative": name, "Inbound": s["in"], "Outbound": s["out"],
             "SD Opened": s["open"], "SD Closed": s["close"], "Ans Rate": f"{s['ans']}%",
-            "AWOL": f"{s['awol']}m", "Wallet": f"{res['GIL']} GIL"
+            "AWOL": f"{s['awol']}m", "Wallet": f"{res['GIL']} Gems"
         })
     st.table(pd.DataFrame(data_rows))
 
@@ -2084,7 +2202,7 @@ with tab_overview:
     st.table(pd.DataFrame(avg_rows))
 
     st.divider()
-    st.subheader("🏆 Sector 7 Honors (Top Performers)")
+    st.subheader("🏆 Dragon Honours (Top Performers)")
     h_col1, h_col2, h_col3 = st.columns(3)
     h_col4, h_col5, h_col6 = st.columns(3)
     honors_columns = [h_col1, h_col2, h_col3, h_col4, h_col5, h_col6]
@@ -2092,7 +2210,7 @@ with tab_overview:
         winners_list = calculate_winners(key, STAFF_NAMES, is_high)
         winners_str = ", ".join(winners_list) if winners_list else "Up for grabs"
         with honors_columns[idx]:
-            st.markdown(f'<div class="award-card"><div style="color:#00ffcc; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div><div>{winners_str}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="award-card"><div style="color:#ffd23f; font-weight:bold; font-size:0.85rem; margin-bottom:5px;">{title}</div><div>{winners_str}</div></div>', unsafe_allow_html=True)
 
 # =============================================================================
 # TAB: PERFORMANCE CHARTS
@@ -2110,23 +2228,23 @@ with tab_charts:
             marker_color=color,
             text=values,
             textposition="outside",
-            textfont=dict(color="#f0f0f0", family="Courier New", size=13)
+            textfont=dict(color="#f0f0f0", family="Fredoka", size=13)
         ))
         fig.update_layout(
-            title=dict(text=title, font=dict(color="#00ffcc", size=16, family="Courier New"), x=0),
+            title=dict(text=title, font=dict(color="#ffd23f", size=16, family="Fredoka"), x=0),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(l=10, r=10, t=50, b=10),
             height=270,
             showlegend=False,
             xaxis=dict(
-                tickfont=dict(color="#00ffcc", family="Courier New"),
-                gridcolor="rgba(0, 255, 204, 0.06)",
+                tickfont=dict(color="#ffd23f", family="Fredoka"),
+                gridcolor="rgba(255, 210, 63, 0.06)",
                 title=None
             ),
             yaxis=dict(
-                tickfont=dict(color="#aaa", family="Courier New"),
-                gridcolor="rgba(0, 255, 204, 0.08)",
+                tickfont=dict(color="#aaa", family="Fredoka"),
+                gridcolor="rgba(255, 210, 63, 0.08)",
                 title=dict(text=y_label, font=dict(color="#aaa", size=11)),
                 rangemode="tozero"
             )
@@ -2139,10 +2257,10 @@ with tab_charts:
     mtd_open  = [md[n]["open"]  for n in STAFF_NAMES]
     mtd_close = [md[n]["close"] for n in STAFF_NAMES]
 
-    st.plotly_chart(make_bar("Inbound Calls — MTD", mtd_in, "#00ffcc", "Calls"), width="stretch", config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Outbound Calls — MTD", mtd_out, "#0099ff", "Calls"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Inbound Calls — MTD", mtd_in, "#ffd23f", "Calls"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Outbound Calls — MTD", mtd_out, "#4cc9f0", "Calls"), width="stretch", config={"displayModeBar": False})
     st.plotly_chart(make_bar("Tickets Opened — MTD", mtd_open, "#ff4b4b", "Tickets"), width="stretch", config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Tickets Closed — MTD", mtd_close, "#ffcc00", "Tickets"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Tickets Closed — MTD", mtd_close, "#ff9f1c", "Tickets"), width="stretch", config={"displayModeBar": False})
 
     st.divider()
     st.subheader("📅 Weighted Daily Averages")
@@ -2155,10 +2273,10 @@ with tab_charts:
         avg_open_vals.append(avgs["avg_open"]  if avgs["avg_open"]  is not None else 0)
         avg_close_vals.append(avgs["avg_close"] if avgs["avg_close"] is not None else 0)
 
-    st.plotly_chart(make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#00ffcc", "Calls/day"), width="stretch", config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#0099ff", "Calls/day"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Inbound Calls — Daily (Weighted)", avg_in_vals, "#ffd23f", "Calls/day"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Outbound Calls — Daily (Weighted)", avg_out_vals, "#4cc9f0", "Calls/day"), width="stretch", config={"displayModeBar": False})
     st.plotly_chart(make_bar("Avg Tickets Opened — Daily (Weighted)", avg_open_vals, "#ff4b4b", "Tickets/day"), width="stretch", config={"displayModeBar": False})
-    st.plotly_chart(make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ffcc00", "Tickets/day"), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(make_bar("Avg Tickets Closed — Daily (Weighted)", avg_close_vals, "#ff9f1c", "Tickets/day"), width="stretch", config={"displayModeBar": False})
 
 
 # =============================================================================
@@ -2191,7 +2309,7 @@ with tab_trends:
         st.subheader("📊 Team output per update")
         team_daily = tdf.groupby(["sort", "Date"], as_index=False)[["Inbound", "Outbound", "Opened", "Closed"]].sum().sort_values("sort")
         fig_td = go.Figure()
-        for cat, colr in zip(["Inbound", "Outbound", "Opened", "Closed"], ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00"]):
+        for cat, colr in zip(["Inbound", "Outbound", "Opened", "Closed"], ["#ffd23f", "#4cc9f0", "#ff4b4b", "#ff9f1c"]):
             fig_td.add_trace(go.Bar(name=cat, x=team_daily["Date"], y=team_daily[cat], marker_color=colr, opacity=0.88))
         fig_td.update_layout(barmode="stack")
         st.plotly_chart(style_fig(fig_td, 320), width="stretch", config={"displayModeBar": False})
@@ -2221,7 +2339,7 @@ with tab_trends:
                         ys.append(hist[dkey][n][HIST_FIELDS.index("ans")])
                 fig_ans.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name=n.split(" ")[0],
                                              line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)], width=3)))
-            fig_ans.add_hline(y=GOAL_ANS, line_dash="dot", line_color="#ffcc00")
+            fig_ans.add_hline(y=GOAL_ANS, line_dash="dot", line_color="#ff9f1c")
             style_fig(fig_ans, 340)
             lowest_ans = min((hist[dk][n][HIST_FIELDS.index("ans")] for dk in hist_dates for n in hist[dk]), default=90)
             fig_ans.update_yaxes(range=[min(90, lowest_ans - 1), 100.5])
@@ -2259,33 +2377,33 @@ def _mix(c1, c2, t):
 
 
 def heat_colour(t):
-    """0 -> red, 0.5 -> amber, 1 -> teal"""
-    return _mix("#ff4b4b", "#ffcc00", t * 2) if t < 0.5 else _mix("#ffcc00", "#00ffcc", (t - 0.5) * 2)
+    """0 -> red, 0.5 -> orange, 1 -> green"""
+    return _mix("#ff4b4b", "#ff9f1c", t * 2) if t < 0.5 else _mix("#ff9f1c", "#7bd389", (t - 0.5) * 2)
 
 
 YTD_CSS = """
 .ycards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.ycard { background: rgba(0,255,204,0.06); border: 1px solid rgba(0,255,204,0.35); border-radius: 12px; text-align: center; padding: 14px 8px; }
-.ycard b { display: block; font-size: 30px; color: #00ffcc; font-family: 'Courier New', monospace; }
+.ycard { background: rgba(255,210,63,0.06); border: 1px solid rgba(255,210,63,0.35); border-radius: 12px; text-align: center; padding: 14px 8px; }
+.ycard b { display: block; font-size: 30px; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .ycard span { font-size: 13px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
 .vbars { display: flex; align-items: flex-end; gap: 12px; height: 260px; padding: 10px 6px 0; border-bottom: 1px solid rgba(255,255,255,0.15); }
 .vcol { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
-.vcol .t { font-size: 14px; color: #ddd; font-family: 'Courier New', monospace; margin-bottom: 4px; font-weight: bold; }
+.vcol .t { font-size: 14px; color: #ddd; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; margin-bottom: 4px; font-weight: bold; }
 .vstack { width: 70%; display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; }
 .vlabels { display: flex; gap: 12px; padding: 6px 6px 0; }
-.vlabels div { flex: 1; text-align: center; font-size: 15px; color: #00ffcc; font-family: 'Courier New', monospace; }
+.vlabels div { flex: 1; text-align: center; font-size: 15px; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; }
 .legend { display: flex; gap: 16px; margin-top: 10px; font-size: 15px; color: #ccc; }
 .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
 table.heat { width: 100%; border-collapse: separate; border-spacing: 4px; }
-table.heat th { font-size: 14px; color: #00ffcc; font-family: 'Courier New', monospace; font-weight: normal; padding: 2px; }
-table.heat td { text-align: center; font-family: 'Courier New', monospace; font-weight: bold; font-size: 15px; padding: 9px 2px; border-radius: 5px; color: #0a0e13; }
+table.heat th { font-size: 14px; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-weight: normal; padding: 2px; }
+table.heat td { text-align: center; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; font-weight: bold; font-size: 15px; padding: 9px 2px; border-radius: 5px; color: #1c0f33; }
 table.heat td.nm { color: #ddd; text-align: left; font-family: 'Segoe UI', Arial, sans-serif; font-weight: bold; background: transparent !important; padding-left: 4px; }
 table.heat td.empty { background: rgba(255,255,255,0.04); color: #555; }
 table.rec { width: 100%; border-collapse: collapse; font-size: 16px; }
-table.rec th { color: #00ffcc; text-align: left; padding: 8px; border-bottom: 1px solid rgba(0,255,204,0.35); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+table.rec th { color: #ffd23f; text-align: left; padding: 8px; border-bottom: 1px solid rgba(255,210,63,0.35); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
 table.rec td { padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,0.07); color: #eee; }
-table.rec td.m { font-family: 'Courier New', monospace; color: #00ffcc; }
-.star { margin-top: 12px; font-size: 18px; color: #ffcc00; }
+table.rec td.m { font-family: 'Fredoka', 'Trebuchet MS', sans-serif; color: #ffd23f; }
+.star { margin-top: 12px; font-size: 18px; color: #ff9f1c; }
 """
 
 
@@ -2320,13 +2438,13 @@ def build_ytd_html(ytd):
         cards.append((f"{int(ytd['summary']['Jobs supported']):,}", "🔧 Jobs supported"))
     parts.append(
         "<div class='sec' id='sec-yhead'>"
-        "<div class='hdr'><div class='t'>📆 MIDGAR OPS · YEAR TO DATE</div>"
+        "<div class='hdr'><div class='t'>📆 DRAGON REALMS OPS · YEAR TO DATE</div>"
         f"<div class='s'>{ytd.get('year', '')} · {span}<br>updated {html.escape(str(ytd.get('updated', '—')))}</div></div>"
         "<div class='ycards'>" + "".join(f"<div class='ycard'><b>{b}</b><span>{l}</span></div>" for b, l in cards) + "</div></div>"
     )
 
     # Section 2: team month by month (stacked bars)
-    segs = [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"), ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]
+    segs = [("in", "Inbound", "#ffd23f"), ("out", "Outbound", "#4cc9f0"), ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ff9f1c")]
     totals = {m: {k: sum(val(m, n, k) or 0 for n in people) for k, _, _ in segs} for m in months}
     mx = max((sum(t.values()) for t in totals.values()), default=1) or 1
     cols = ""
@@ -2361,7 +2479,7 @@ def build_ytd_html(ytd):
                 rows_a += f"<td style='background:{heat_colour((a - lo) / (100 - lo) if 100 > lo else 1)};'>{a:g}%</td>"
             w = val(m, n, "awol") or 0
             txt = fmt_mins(w)[2:] if w < 60 else fmt_mins(w)
-            rows_w += f"<td style='background:{heat_colour(1 - w / awol_max) if w > 0 else '#1d3b36'};{'' if w > 0 else 'color:#5f8f86;'}'>{txt}</td>"
+            rows_w += f"<td style='background:{heat_colour(1 - w / awol_max) if w > 0 else '#2e1d4a'};{'' if w > 0 else 'color:#9a86c8;'}'>{txt}</td>"
         rows_a += "</tr>"
         rows_w += "</tr>"
     parts.append(
@@ -2414,7 +2532,7 @@ def build_ytd_html(ytd):
         f"<div class='star'>🏆 Team's busiest month: <b>{MONTH_NAMES[int(tb) - 1]}</b> with <b>{team_by_month[tb]:,}</b> calls + tickets</div>"
         "</div></div>"
     )
-    parts.append("<div class='foot'>Shinra Ops Dashboard · Avalanche HQ</div>")
+    parts.append("<div class='foot'>Dragon Realms Ops · Artisans HQ</div>")
     height = 1900 + 40 * len(people)
     return "".join(parts), height
 
@@ -2451,7 +2569,7 @@ with tab_ytd:
                      help="A screenshot-ready version of this page with Copy buttons – paste straight into Teams."):
             ytd_html, ytd_height = build_ytd_html(ytd)
             capture_component(ytd_html, BRIEF_CSS + YTD_CSS, ytd_height,
-                              f"midgar-ytd-{now_uk().date().isoformat()}.png",
+                              f"dragon-realms-ytd-{now_uk().date().isoformat()}.png",
                               sections=[("sec-yhead", "📆 Headlines"), ("sec-ymonth", "📊 Month by month"),
                                         ("sec-ygrid", "🛡️ Answer % & AWOL"), ("sec-ylead", "🏆 By person"),
                                         ("sec-yrec", "🌟 Records")], whole_label="everything")
@@ -2481,8 +2599,8 @@ with tab_ytd:
         # ── Team month by month ────────────────────────────────────────────────
         st.subheader("📊 Team output month by month")
         fig_m = go.Figure()
-        for key, lbl, colr in [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"),
-                               ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]:
+        for key, lbl, colr in [("in", "Inbound", "#ffd23f"), ("out", "Outbound", "#4cc9f0"),
+                               ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ff9f1c")]:
             fig_m.add_trace(go.Bar(name=lbl, x=mlabels, y=[sum(val(m, n, key) or 0 for n in people) for m in months],
                                    marker_color=colr, opacity=0.88))
         fig_m.update_layout(barmode="stack")
@@ -2502,7 +2620,7 @@ with tab_ytd:
             fig_p.add_trace(go.Scatter(x=mlabels, y=ys, mode="lines+markers", name=short[n],
                                        line=dict(color=pcol[n], width=3), connectgaps=False))
         if metric_opts[pick] == "ans":
-            fig_p.add_hline(y=GOAL_ANS, line_dash="dot", line_color="#ffcc00")
+            fig_p.add_hline(y=GOAL_ANS, line_dash="dot", line_color="#ff9f1c")
         st.plotly_chart(style_fig(fig_p, 360), width="stretch", config={"displayModeBar": False})
         st.caption("The current month is partial, so expect its point to dip until the month is complete.")
 
@@ -2512,10 +2630,10 @@ with tab_ytd:
         flat = [v for row in z for v in row if v is not None]
         fig_h = go.Figure(go.Heatmap(
             z=z, x=mlabels, y=[short[n] for n in people],
-            colorscale=[[0, "#ff4b4b"], [0.5, "#ffcc00"], [1, "#00ffcc"]],
+            colorscale=[[0, "#ff4b4b"], [0.5, "#ff9f1c"], [1, "#7bd389"]],
             zmin=min(flat + [95]), zmax=100, xgap=3, ygap=3,
             text=[[f"{v:g}%" if v is not None else "" for v in row] for row in z],
-            texttemplate="%{text}", textfont=dict(family="Courier New", size=13, color="#0a0e13"),
+            texttemplate="%{text}", textfont=dict(family="Fredoka", size=13, color="#1c0f33"),
             hovertemplate="%{y} · %{x}: %{z}%<extra></extra>", showscale=False))
         fig_h.update_yaxes(autorange="reversed")
         st.plotly_chart(style_fig(fig_h, 70 + 42 * len(people)), width="stretch", config={"displayModeBar": False})
@@ -2525,8 +2643,8 @@ with tab_ytd:
         with c1:
             st.subheader("🏆 YTD totals")
             fig_t = go.Figure()
-            for key, lbl, colr in [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"),
-                                   ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]:
+            for key, lbl, colr in [("in", "Inbound", "#ffd23f"), ("out", "Outbound", "#4cc9f0"),
+                                   ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ff9f1c")]:
                 fig_t.add_trace(go.Bar(name=lbl, x=[short[n] for n in people], y=[tot(n, key) for n in people],
                                        marker_color=colr, opacity=0.88))
             fig_t.update_layout(barmode="stack")
@@ -2535,15 +2653,15 @@ with tab_ytd:
             st.subheader("⚖️ Per day (weighted)")
             days = ytd.get("days", {})
             fig_w = go.Figure()
-            for key, lbl, colr in [("in", "Inbound", "#00ffcc"), ("out", "Outbound", "#0099ff"),
-                                   ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ffcc00")]:
+            for key, lbl, colr in [("in", "Inbound", "#ffd23f"), ("out", "Outbound", "#4cc9f0"),
+                                   ("open", "Opened", "#ff4b4b"), ("close", "Closed", "#ff9f1c")]:
                 ys = []
                 for n in people:
                     wd = (days.get(n) or 0) * SHIFT_WEIGHTS.get(n, 1.0)
                     ys.append(round(tot(n, key) / wd) if wd > 0 else 0)
                 fig_w.add_trace(go.Bar(name=lbl, x=[short[n] for n in people], y=ys, marker_color=colr,
                                        opacity=0.88, text=ys, textposition="outside",
-                                       textfont=dict(color="#f0f0f0", family="Courier New", size=11)))
+                                       textfont=dict(color="#f0f0f0", family="Fredoka", size=11)))
             fig_w.update_layout(barmode="group")
             st.plotly_chart(style_fig(fig_w, 340), width="stretch", config={"displayModeBar": False})
             if not days:
@@ -2598,7 +2716,7 @@ with tab_ytd:
 # TAB: PARTY SPIRIT — COLLECTIVE TEAM VIEW
 # =============================================================================
 with tab_spirit:
-    st.title("🌟 Party Spirit — Avalanche Collective Status")
+    st.title("🌟 Flight Spirit — How the Whole Flight Is Doing")
     st.write("One view. One team. How are we doing together this month?")
 
     ov = team_overview()
@@ -2624,17 +2742,17 @@ with tab_spirit:
 
     # ── SECTION 1: Team identity banner ──────────────────────────────────────
     mission_chips = "".join(
-        f'<span style="background:rgba(0,255,204,0.15);border:1px solid rgba(0,255,204,0.5);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#00ffcc;">✅ {lbl}</span>'
+        f'<span style="background:rgba(255,210,63,0.15);border:1px solid rgba(255,210,63,0.5);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#ffd23f;">✅ {lbl}</span>'
         if hit else
         f'<span style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:#555;">⬜ {lbl}</span>'
         for lbl, hit, _ in ov["missions"]
     )
     st.markdown(f"""
-        <div style="background: linear-gradient(135deg, rgba(0,255,204,0.08) 0%, rgba(0,100,80,0.15) 100%);
-                    border: 1px solid rgba(0,255,204,0.45); border-radius: 18px;
+        <div style="background: linear-gradient(135deg, rgba(255,210,63,0.08) 0%, rgba(106,44,145,0.3) 100%);
+                    border: 1px solid rgba(255,210,63,0.45); border-radius: 18px;
                     padding: 28px 32px; text-align: center; margin-bottom: 28px;">
-            <div style="font-size: 0.8rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 6px;">Current Party Designation</div>
-            <div style="font-size: 2rem; font-weight: bold; color: #00ffcc; font-family: 'Courier New', monospace; text-shadow: 0 0 18px rgba(0,255,204,0.4);">
+            <div style="font-size: 0.8rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 6px;">Current Flight Designation</div>
+            <div style="font-size: 2rem; font-weight: bold; color: #ffd23f; font-family: 'Fredoka', 'Trebuchet MS', sans-serif; text-shadow: 0 0 18px rgba(255,210,63,0.4);">
                 {team_title}
             </div>
             <div style="font-size: 0.9rem; color: #bbb; margin-top: 10px; font-style: italic;">{team_flavour}</div>
@@ -2646,7 +2764,7 @@ with tab_spirit:
 
     # ── SECTION 2: Big stat row ───────────────────────────────────────────────
     s1, s2, s3, s4 = st.columns(4)
-    for col, big, lbl in [(s1, f"{total_team_exp:,}", "💠 Total Party EXP"), (s2, f"{total_team_gil:,}", "💰 Total Party GIL"),
+    for col, big, lbl in [(s1, f"{total_team_exp:,}", "💠 Total Flight EXP"), (s2, f"{total_team_gil:,}", "💎 Total Flight Gems"),
                           (s3, f"{avg_team_lvl}", "⚔️ Avg Operative Level"), (s4, f"{missions_hit}/4", "🎯 Missions Achieved")]:
         with col:
             st.markdown(f"""
@@ -2658,20 +2776,20 @@ with tab_spirit:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── SECTION 3: Mako Level gauge + Party HP side by side ──────────────────
+    # ── SECTION 3: Supercharge meter + Sparx health side by side ──────────────────
     g1, g2 = st.columns(2)
 
     with g1:
-        st.markdown("#### ⚡ Collective Mako Level")
+        st.markdown("#### ⚡ Supercharge Meter")
         st.markdown(f"""
-            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,204,0.25);
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,210,63,0.25);
                         border-radius: 12px; padding: 20px; margin-bottom: 6px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span style="color:#aaa; font-size:0.85rem;">Combined team output fuelling the reactor</span>
-                    <span style="color:#00ffcc; font-family:'Courier New'; font-weight:bold; font-size:1.1rem;">{mako_level}%</span>
+                    <span style="color:#aaa; font-size:0.85rem;">Combined team output charging up the flight</span>
+                    <span style="color:#ffd23f; font-family:'Fredoka'; font-weight:bold; font-size:1.1rem;">{mako_level}%</span>
                 </div>
-                <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(0,255,204,0.2);">
-                    <div style="background: linear-gradient(90deg, #005544, #00ffcc); width: {mako_level}%; height: 100%; transition: width 0.4s ease;"></div>
+                <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(255,210,63,0.2);">
+                    <div style="background: linear-gradient(90deg, #6a2c91, #ffd23f); width: {mako_level}%; height: 100%; transition: width 0.4s ease;"></div>
                 </div>
                 <div style="margin-top: 12px; font-size: 0.8rem; color: #666;">
                     Total Calls: {total_in + total_out:,} &nbsp;|&nbsp; Total Tickets: {total_open + total_close:,} &nbsp;|&nbsp; Total EXP: {total_team_exp:,}
@@ -2680,7 +2798,7 @@ with tab_spirit:
         """, unsafe_allow_html=True)
 
     with g2:
-        st.markdown("#### ❤️ Party Vitality Reading")
+        st.markdown("#### ✨ Flight Sparx Health")
         pill_html = ""
         for name in STAFF_NAMES:
             r = all_res[name]
@@ -2688,13 +2806,13 @@ with tab_spirit:
             short = name.split(" ")[0]
             pill_html += f'<span style="background:rgba(0,0,0,0.5);border:1px solid {pc};border-radius:20px;padding:3px 10px;font-size:0.72rem;color:{pc};margin:2px;display:inline-block;">{short} {round(r["HP_Pct"]*100)}%</span>'
         st.markdown(f"""
-            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,204,0.25);
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,210,63,0.25);
                         border-radius: 12px; padding: 20px; margin-bottom: 6px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color:#aaa; font-size:0.85rem;">Average HP across all operatives</span>
-                    <span style="color:{party_hp_color}; font-family:'Courier New'; font-weight:bold; font-size:1.1rem;">{round(avg_hp_pct*100)}%</span>
+                    <span style="color:{party_hp_color}; font-family:'Fredoka'; font-weight:bold; font-size:1.1rem;">{round(avg_hp_pct*100)}%</span>
                 </div>
-                <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(0,255,204,0.2);">
+                <div style="background: rgba(0,0,0,0.5); border-radius: 6px; height: 22px; overflow: hidden; border: 1px solid rgba(255,210,63,0.2);">
                     <div style="background-color: {party_hp_color}; width: {round(avg_hp_pct*100)}%; height: 100%;"></div>
                 </div>
                 <div style="margin-top: 12px;">{pill_html}</div>
@@ -2704,11 +2822,11 @@ with tab_spirit:
     st.divider()
 
     # ── SECTION 4: Collective volume chart (stacked bar per person) ───────────
-    st.subheader("📊 Party Contribution Breakdown")
+    st.subheader("📊 Flight Contribution Breakdown")
     st.write("How each operative is contributing to the team's total output this month.")
 
     categories = ["Inbound", "Outbound", "Opened", "Closed"]
-    chart_colors = ["#00ffcc", "#0099ff", "#ff4b4b", "#ffcc00"]
+    chart_colors = ["#ffd23f", "#4cc9f0", "#ff4b4b", "#ff9f1c"]
     keys = ["in", "out", "open", "close"]
 
     fig_stack = go.Figure()
@@ -2726,7 +2844,7 @@ with tab_spirit:
     st.divider()
 
     # ── SECTION 5: Support signals ────────────────────────────────────────────
-    st.subheader("🔍 Party Support Signals")
+    st.subheader("🔍 Flight Support Signals")
     st.write("Areas where the team might need a helping hand — framed for the group, not the individual.")
 
     signals_found = False
@@ -2749,9 +2867,9 @@ with tab_spirit:
             signals_found = True
             st.markdown(f"""
                 <div class="signal-card-warn">
-                    <strong style="color:#ffcc00;">📞 Comms Slightly Stretched</strong>
+                    <strong style="color:#ff9f1c;">📞 Comms Slightly Stretched</strong>
                     <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                        {short}'s answer rate is at <strong style="color:#ffcc00;">{ans}%</strong>.
+                        {short}'s answer rate is at <strong style="color:#ff9f1c;">{ans}%</strong>.
                         Worth keeping an eye on as the month progresses.
                     </p>
                 </div>
@@ -2764,9 +2882,9 @@ with tab_spirit:
             signals_found = True
             st.markdown(f"""
                 <div class="signal-card-crit">
-                    <strong style="color:#ff4b4b;">❤️ Vitality Critical</strong>
+                    <strong style="color:#ff4b4b;">✨ Sparx Fading</strong>
                     <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                        {short} is running low on HP ({r['HP_Display']}). AWOL time or answer rate may need attention — the party can rally around this.
+                        {short} is running low on HP ({r['HP_Display']}). AWOL time or answer rate may need attention — the flight can rally around this.
                     </p>
                 </div>
             """, unsafe_allow_html=True)
@@ -2774,7 +2892,7 @@ with tab_spirit:
             signals_found = True
             st.markdown(f"""
                 <div class="signal-card-warn">
-                    <strong style="color:#ffcc00;">❤️ Vitality Moderate</strong>
+                    <strong style="color:#ff9f1c;">✨ Sparx Flickering</strong>
                     <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
                         {short} is at {round(r['HP_Pct']*100)}% HP. Not critical yet, but worth a check-in.
                     </p>
@@ -2796,7 +2914,7 @@ with tab_spirit:
         signals_found = True
         st.markdown(f"""
             <div class="signal-card-warn">
-                <strong style="color:#ffcc00;">⏱️ AWOL Pool Thinning</strong>
+                <strong style="color:#ff9f1c;">⏱️ AWOL Pool Thinning</strong>
                 <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
                     {total_awol} of {MAX_AWOL:g} AWOL minutes used. Only {MAX_AWOL - total_awol:.1f} minutes remaining in the shared pool.
                 </p>
@@ -2818,9 +2936,9 @@ with tab_spirit:
         signals_found = True
         st.markdown(f"""
             <div class="signal-card-warn">
-                <strong style="color:#ffcc00;">📋 SLA Approaching Threshold</strong>
+                <strong style="color:#ff9f1c;">📋 SLA Approaching Threshold</strong>
                 <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                    SLA is at <strong style="color:#ffcc00;">{sla_val:.1f}%</strong>. The team is close — a coordinated push on tickets will secure the mission.
+                    SLA is at <strong style="color:#ff9f1c;">{sla_val:.1f}%</strong>. The team is close — a coordinated push on tickets will secure the mission.
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -2828,33 +2946,33 @@ with tab_spirit:
     if not signals_found:
         st.markdown("""
             <div class="signal-card-ok">
-                <strong style="color:#00ffcc;">✅ All Systems Green</strong>
+                <strong style="color:#ffd23f;">✅ All Systems Green</strong>
                 <p style="margin:6px 0 0; color:#ccc; font-size:0.88rem;">
-                    No support signals detected. The party is healthy, the Mako flows strong, and the Planet is breathing easy. Keep it up, Avalanche.
+                    No support signals detected. Sparx is shining gold, the gems are rolling in and the realms are peaceful. Keep it up, dragons!
                 </p>
             </div>
         """, unsafe_allow_html=True)
 
 
 # =============================================================================
-# TAB: MAKO VOLUME HEATMAP
+# TAB: PORTAL TRAFFIC (VOLUME HEATMAP)
 # =============================================================================
 with tab_heat:
-    st.title("🔥 Mako Reactor Traffic Flow")
+    st.title("🌀 Portal Traffic")
     st.subheader("📈 MTD Half-Hour Traffic Volumes")
     v_stats = md["volume_stats"]
     st.table(pd.DataFrame([v_stats], columns=TIME_SLOTS))
 
-    st.subheader("📊 Mako core Traffic Surge graph")
+    st.subheader("📊 Portal Traffic Surge")
     df_vol = pd.DataFrame(list(v_stats.items()), columns=["Time Slot", "Call Volume"])
-    fig = px.area(df_vol, x="Time Slot", y="Call Volume", color_discrete_sequence=["rgba(0, 255, 204, 0.45)"])
+    fig = px.area(df_vol, x="Time Slot", y="Call Volume", color_discrete_sequence=["rgba(255, 210, 63, 0.45)"])
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=15, b=10), height=280, showlegend=False,
-        xaxis=dict(showgrid=True, gridcolor="rgba(0, 255, 204, 0.08)", tickfont=dict(color="#00ffcc", family="Courier New"), title=None),
-        yaxis=dict(showgrid=True, gridcolor="rgba(0, 255, 204, 0.08)", tickfont=dict(color="#00ffcc", family="Courier New"), title=None)
+        xaxis=dict(showgrid=True, gridcolor="rgba(255, 210, 63, 0.08)", tickfont=dict(color="#ffd23f", family="Fredoka"), title=None),
+        yaxis=dict(showgrid=True, gridcolor="rgba(255, 210, 63, 0.08)", tickfont=dict(color="#ffd23f", family="Fredoka"), title=None)
     )
-    fig.update_traces(line=dict(color="rgba(0, 255, 204, 1)", width=3), hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>")
+    fig.update_traces(line=dict(color="rgba(255, 210, 63, 1)", width=3), hovertemplate="<b>Time:</b> %{x}<br><b>Calls:</b> %{y}<extra></extra>")
     st.plotly_chart(fig, width="stretch", config={'displayModeBar': False})
 
     st.divider()
@@ -2863,19 +2981,19 @@ with tab_heat:
     st.table(pd.DataFrame([o_stats], columns=OUTCOME_KEYS))
 
 # =============================================================================
-# TAB: WALL MARKET (SHOP)
+# TAB: MONEYBAGS' SHOP
 # =============================================================================
 with tab_shop:
-    st.title("💰 Wall Market Item Shop")
+    st.title("💎 Moneybags' Shop")
     shop_ui_col1, shop_ui_col2 = st.columns([1, 2])
 
     with shop_ui_col1:
         current_buyer = st.selectbox("Who is shopping?", STAFF_NAMES)
-        selected_perk = st.selectbox("Select Perk", [f"{k} ({v} GIL)" for k, v in SHOP_ITEMS.items()])
+        selected_perk = st.selectbox("Select Perk", [f"{k} ({v} Gems)" for k, v in SHOP_ITEMS.items()])
         perk_name = selected_perk.split(" (")[0]
         perk_price = SHOP_ITEMS[perk_name]
         buyer_stats = get_stats(md[current_buyer])
-        st.write(f"Your Balance: **💰 {buyer_stats['GIL']} GIL**")
+        st.write(f"Your Balance: **💎 {buyer_stats['GIL']} Gems**")
 
         if st.button("Confirm Purchase"):
             if buyer_stats["GIL"] >= perk_price:
@@ -2884,7 +3002,7 @@ with tab_shop:
                 md[current_buyer]["history"].insert(0, f"{now_str}: Bought {perk_name} cost_{perk_price}")
                 st.success(f"Authorized! {perk_name} acquired.")
                 st.rerun()
-            else: st.error("Insufficient GIL.")
+            else: st.error("Not enough gems – Moneybags won't budge!")
 
     with shop_ui_col2:
         st.subheader("Item Logs")
@@ -2900,7 +3018,7 @@ with tab_shop:
 # =============================================================================
 @st.dialog("🌙 Start a new month?")
 def new_month_dialog():
-    st.write("This will **reset every operative to zero**, clear all Wall Market purchases, side quests and "
+    st.write("This will **reset every operative to zero**, clear all Moneybags' Shop purchases, side quests and "
              "this month's trend history, and reset the team metrics, heatmap and outcomes.")
     st.warning("Copy this month's save string first if you want to keep a record of it.")
     confirm = st.text_input("Type NEW MONTH to confirm")
@@ -2925,11 +3043,11 @@ def new_month_dialog():
 
 with tab_admin:
     st.header("🔐 Admin Command Center")
-    admin_access = st.text_input("Enter Shinra Access Code", type="password")
+    admin_access = st.text_input("Enter the Dragon Elder Code", type="password")
     vault_password = st.secrets.get("admin_password", "shinra2026")
 
     if admin_access == vault_password:
-        st.success("Access Granted. Systems online.")
+        st.success("Access granted. Welcome back, Elder.")
 
         if st.session_state.get("flash_levelups"):
             st.balloons()
@@ -3034,7 +3152,7 @@ with tab_admin:
                          "Clear or fix the one with ❌ / ⚠️ above.")
             elif mtd_ready or ytd_ready:
                 what = " + ".join((["month"] if mtd_ready else []) + (["year"] if ytd_ready else []))
-                if st.button(f"🚀 Commit everything to Lifestream ({what})", type="primary", key="xl_commit"):
+                if st.button(f"🚀 Commit everything to the Dragon Realms ({what})", type="primary", key="xl_commit"):
                     saved = []
                     if ytd_ready:
                         md["ytd"] = yx["data"]
@@ -3068,14 +3186,14 @@ with tab_admin:
         edited_mtd = operative_grid(manual_source, f"mtd_editor_{st.session_state.editor_ver}")
         part_timers = [f"{n} x{w}" for n, w in SHIFT_WEIGHTS.items() if w < 1.0 and n in STAFF_NAMES]
         if part_timers:
-            st.caption("Shift weights applied to averages and GIL: " + ", ".join(part_timers))
+            st.caption("Shift weights applied to averages and Gems: " + ", ".join(part_timers))
         d_col, b_col = st.columns([1, 2])
         with d_col:
             data_for = st.date_input("Numbers are up to and including",
                                      value=previous_working_day(now_uk().date()), format="DD/MM/YYYY")
         with b_col:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            commit_mtd = st.button("Commit Morning Update to Lifestream", type="primary")
+            commit_mtd = st.button("Commit Morning Update to the Dragon Realms", type="primary")
         if commit_mtd:
             commit_operatives(grid_to_values(edited_mtd), data_for,
                               f"✅ Morning update saved for {fmt_day(data_for)}. Copy the save string at the bottom into Secrets.")
@@ -3083,7 +3201,7 @@ with tab_admin:
         st.divider()
 
         # --- MODULE 0: SIDE QUEST CONSOLE ---
-        st.subheader("🐉 Module 2: Tavern Dispatch Side Quest Control Board")
+        st.subheader("🥚 Module 2: Egg Hunt Control Board")
         sq_adm_col1, sq_adm_col2 = st.columns(2)
 
         with sq_adm_col1:
@@ -3119,7 +3237,7 @@ with tab_admin:
             q_complete_target = st.selectbox("Select Operative to Complete Active Quest For", STAFF_NAMES, key="q_comp_tgt")
             active_q_obj = md[q_complete_target].get("active_quest", {})
             if active_q_obj and active_q_obj.get("title"):
-                st.info(f"**Quest:** {active_q_obj['title']}\n\n**Logged:** {active_q_obj['minutes']} mins (1:1 Frontline Match)")
+                st.info(f"**Quest:** {active_q_obj['title']}\n\n**Logged:** {active_q_obj['minutes']} mins (1:1 desk match)")
                 if st.button("🏆 Mark Completed & Inject Rewards"):
                     m_stats = md[q_complete_target]
                     avgs = get_daily_averages(q_complete_target, m_stats)
@@ -3147,7 +3265,7 @@ with tab_admin:
                     md[q_complete_target]["side_quests"].append(completed_quest_payload)
                     md[q_complete_target]["active_quest"] = {}
                     touch_last_updated()
-                    st.success(f"Quest Complete! Paid out +{simulated_exp_sum} EXP and +💰 {calculated_gil_bonus} GIL to {q_complete_target}.")
+                    st.success(f"Quest Complete! Paid out +{simulated_exp_sum} EXP and +💎 {calculated_gil_bonus} Gems to {q_complete_target}.")
                     st.rerun()
             else:
                 st.write("This operative does not currently have an unresolved active side quest assignment.")
@@ -3169,7 +3287,7 @@ with tab_admin:
             aq_valid = bool(time_pattern.match(val_avg_queue))
             if not lw_valid: st.error("Longest Wait format error. Use HH:MM:SS format.")
             if not aq_valid: st.error("Avg Queue Time format error. Use HH:MM:SS format.")
-        if st.button("Commit Team Metrics to Lifestream"):
+        if st.button("Commit Team Metrics to the Dragon Realms"):
             if lw_valid and aq_valid:
                 md["team_stats"].update({
                     "success_pct": val_success, "sla_pct": val_sla,
@@ -3182,7 +3300,7 @@ with tab_admin:
         st.divider()
 
         # --- MODULE 3: HEATMAP DATA ---
-        st.subheader("🔥 Module 4: Update Mako Traffic Flows & Global Outcomes")
+        st.subheader("🌀 Module 4: Update Portal Traffic & Global Outcomes")
         st.markdown("##### **Part A: Half-Hour Volume Parameters Input Grid**")
         st.caption("Tab moves left to right through the times in order.")
         # Built row by row (not column by column) so the Tab key runs 08:00 → 08:30 → 09:00 …
@@ -3210,7 +3328,7 @@ with tab_admin:
                     o_inputs[key] = st.number_input(f"{key} %", value=pct_to_float(md["outcome_stats"].get(key, "0.0%")),
                                                     min_value=0.0, max_value=100.0, step=0.1, format="%.1f",
                                                     key=f"outcome_{key}_{st.session_state.editor_ver}")
-        if st.button("🚀 Mass-Commit Heatmap Metrics to Lifestream"):
+        if st.button("🚀 Commit Portal Traffic & Outcomes"):
             for slot in TIME_SLOTS: md["volume_stats"][slot] = int(v_inputs[slot])
             # Stored as "12.3%" text, same as before, so older saves and the Heatmap tab keep working
             for key in OUTCOME_KEYS: md["outcome_stats"][key] = f"{o_inputs[key]:.1f}%"
@@ -3221,44 +3339,44 @@ with tab_admin:
         st.divider()
 
         # --- MODULE 4: LEDGER CORRECTIONS ---
-        st.subheader("🚨 Module 5: Shinra Financial Audit & Ledger Deletions Panel")
+        st.subheader("🚨 Module 5: Moneybags' Ledger Corrections")
         aud_col1, aud_col2 = st.columns(2)
 
         with aud_col1:
-            st.markdown("##### **🐉 Roll Back Completed Side Quests**")
+            st.markdown("##### **🥚 Roll Back Completed Egg Hunts**")
             sq_del_user  = st.selectbox("Select Operative to Audit Quests", STAFF_NAMES, key="sq_del_usr")
             user_quests  = md[sq_del_user].get("side_quests", [])
             if user_quests:
-                quest_options = [f"{idx} | {q['title']} (+{q['simulated_exp']} XP, +{q['gil_reward']} GIL)" for idx, q in enumerate(user_quests)]
+                quest_options = [f"{idx} | {q['title']} (+{q['simulated_exp']} XP, +{q['gil_reward']} Gems)" for idx, q in enumerate(user_quests)]
                 selected_quest_str = st.selectbox("Select Target Quest to Erase", quest_options)
                 target_quest_idx   = int(selected_quest_str.split(" | ")[0])
                 if st.button("💥 Purge Quest & Deduct Rewards", type="primary"):
                     removed_quest = md[sq_del_user]["side_quests"].pop(target_quest_idx)
                     touch_last_updated()
-                    st.success(f"Successfully voided '{removed_quest['title']}'! Deducted {removed_quest['simulated_exp']} EXP and {removed_quest['gil_reward']} GIL from {sq_del_user}.")
+                    st.success(f"Successfully voided '{removed_quest['title']}'! Deducted {removed_quest['simulated_exp']} EXP and {removed_quest['gil_reward']} Gems from {sq_del_user}.")
                     st.rerun()
             else:
                 st.write("This operative has no completed side quests registered in this frame ledger.")
 
         with aud_col2:
-            st.markdown("##### **💰 Void Wall Market Purchases & Issue Refunds**")
+            st.markdown("##### **💎 Void Moneybags' Shop Purchases & Issue Refunds**")
             shop_del_user  = st.selectbox("Select Shopper to Audit Invoices", STAFF_NAMES, key="shop_del_usr")
             user_history   = md[shop_del_user].get("history", [])
             purchase_entries = [item for item in user_history if " cost_" in item]
             if purchase_entries:
-                purchase_options = [f"{idx} | {item.split(' cost_')[0]} (Refund Value: {item.split(' cost_')[1]} GIL)" for idx, item in enumerate(purchase_entries)]
+                purchase_options = [f"{idx} | {item.split(' cost_')[0]} (Refund Value: {item.split(' cost_')[1]} Gems)" for idx, item in enumerate(purchase_entries)]
                 selected_item_str = st.selectbox("Select Target Order to Void", purchase_options)
                 target_item_idx_in_filtered = int(selected_item_str.split(" | ")[0])
                 raw_string_to_remove = purchase_entries[target_item_idx_in_filtered]
-                if st.button("💸 Void Purchase & Refund GIL", type="primary"):
+                if st.button("💸 Void Purchase & Refund Gems", type="primary"):
                     extracted_cost = int(raw_string_to_remove.split(" cost_")[1])
                     md[shop_del_user]["history"].remove(raw_string_to_remove)
                     md[shop_del_user]["spent"] -= extracted_cost
                     touch_last_updated()
-                    st.success(f"Order Voided! Refunded +💰 {extracted_cost} GIL back into {shop_del_user}'s wallet.")
+                    st.success(f"Order Voided! Refunded +💎 {extracted_cost} Gems back into {shop_del_user}'s wallet.")
                     st.rerun()
             else:
-                st.write("This operative has no refundable Wall Market ledger interactions logged.")
+                st.write("This operative hasn't bought anything from Moneybags yet.")
 
         st.divider()
 
@@ -3289,4 +3407,4 @@ with tab_admin:
         st.code(toml_line, language="toml")
 
     elif admin_access != "":
-        st.error("Access Denied. Security measures initialized.")
+        st.error("Access denied. The Gnorcs are watching.")
