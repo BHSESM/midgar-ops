@@ -155,10 +155,11 @@ st.markdown("""
         white-space: nowrap;
     }
 
-    /* Operative crests */
+    /* Operative dragons */
     .crest { text-align: center; }
     .crest img {
-        height: 130px;
+        height: 160px;
+        border-radius: 22px;
         filter: drop-shadow(0px 0px 12px rgba(255, 210, 63, 0.55));
         transition: transform 0.4s ease;
     }
@@ -283,36 +284,79 @@ def svg_uri(svg):
     return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
 
-def gem_crest_svg(initial, colour, dark, pattern=None):
-    """An original crest: a faceted gem on a shield, in the operative's own colour.
-    pattern="spots" adds a cheetah-spot print to the shield."""
-    spots = ""
-    shield_top, shield_bottom = "#3a1f63", "#170b2e"
-    if pattern == "spots":
-        shield_top, shield_bottom = "#d9a03f", "#7a4a12"   # golden coat
-        dots = [(28, 30, 4.5, 3.6), (42, 20, 3, 2.6), (78, 20, 3.2, 2.6), (92, 30, 4.4, 3.4), (101, 46, 3.2, 2.8),
-                (22, 46, 3.4, 2.8), (20, 64, 4.2, 3.4), (102, 64, 4, 3.2), (26, 82, 3.4, 2.8), (96, 82, 3.6, 3),
-                (36, 96, 3, 2.6), (86, 98, 3.2, 2.6), (60, 26, 2.6, 2.2)]
-        spots = "".join(f"<ellipse cx='{x}' cy='{y}' rx='{rx}' ry='{ry}' fill='#2b1406' fill-opacity='.9' "
-                        f"transform='rotate({(x * 7) % 50 - 25} {x} {y})'/>" for x, y, rx, ry in dots)
-    return f"""<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 140' width='120' height='140'>
+def _shade(hex_colour, to, t):
+    a = [int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(to[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
+
+
+def dragon_portrait_svg(colour, extra=None):
+    """An original chibi dragon wearing a call-centre headset, in the operative's colour.
+    extra: "spots" (cheetah print), "flower", "star", "bow", "shades" or None."""
+    dark = _shade(colour, "#1c0f33", 0.45)
+    light = _shade(colour, "#ffffff", 0.55)
+    cream = "#fff1d6"
+    ink = "#1c0f33"
+    deco = ""
+    shades = ""
+    if extra == "shades":
+        shades = ("<rect x='45' y='63' width='22' height='14' rx='6' fill='#120a20'/>"
+                  "<rect x='73' y='63' width='22' height='14' rx='6' fill='#120a20'/>"
+                  "<path d='M67 68 Q70 65 73 68' stroke='#120a20' stroke-width='2.5' fill='none'/>"
+                  "<path d='M49 66 L56 66' stroke='#ffffff' stroke-opacity='.5' stroke-width='2' stroke-linecap='round'/>"
+                  "<path d='M77 66 L84 66' stroke='#ffffff' stroke-opacity='.5' stroke-width='2' stroke-linecap='round'/>")
+    if extra == "spots":
+        for x, y, rx, ry in [(60, 50, 3.2, 2.4), (74, 46, 2.6, 2), (86, 54, 3, 2.3), (50, 62, 2.4, 2), (92, 66, 2.6, 2),
+                             (52, 124, 3.4, 2.6), (90, 122, 3.2, 2.5), (40, 134, 2.8, 2.2), (100, 136, 3, 2.3)]:
+            deco += f"<ellipse cx='{x}' cy='{y}' rx='{rx}' ry='{ry}' fill='#3b1d08' fill-opacity='.85'/>"
+    elif extra == "flower":
+        cx, cy = 98, 42
+        for dx, dy in [(0, -6), (6, -2), (4, 5), (-4, 5), (-6, -2)]:
+            deco += f"<circle cx='{cx + dx}' cy='{cy + dy}' r='4.6' fill='#ffe3ee' stroke='#ff8fab' stroke-width='1'/>"
+        deco += f"<circle cx='{cx}' cy='{cy}' r='3.4' fill='#ffd23f'/>"
+    elif extra == "bow":
+        deco = ("<path d='M96 40 L84 32 L84 48 Z M96 40 L108 32 L108 48 Z' fill='#ff4d8d' stroke='#ffd0e2' stroke-width='1.2' stroke-linejoin='round'/>"
+                "<circle cx='96' cy='40' r='3.6' fill='#ff9fc2' stroke='#ffd0e2' stroke-width='1'/>")
+    elif extra == "star":
+        deco = "<path d='M100 30 l3 7 7.5 .6 -5.8 4.8 1.9 7.3 -6.6 -4 -6.6 4 1.9 -7.3 -5.8 -4.8 7.5 -.6 z' fill='#ffd23f' stroke='#fff6c9' stroke-width='1'/>"
+    return f"""<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 150' width='140' height='150'>
 <defs>
- <linearGradient id='sh' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{shield_top}'/><stop offset='1' stop-color='{shield_bottom}'/></linearGradient>
- <linearGradient id='gm' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#ffffff' stop-opacity='.85'/><stop offset='.35' stop-color='{colour}'/><stop offset='1' stop-color='{dark}'/></linearGradient>
- <radialGradient id='gl' cx='.5' cy='.45' r='.5'><stop offset='0' stop-color='{colour}' stop-opacity='.55'/><stop offset='1' stop-color='{colour}' stop-opacity='0'/></radialGradient>
+ <radialGradient id='bg' cx='.5' cy='.45' r='.7'><stop offset='0' stop-color='{colour}' stop-opacity='.45'/><stop offset='.6' stop-color='#2d1257'/><stop offset='1' stop-color='#170b2e'/></radialGradient>
+ <clipPath id='fr'><rect x='4' y='4' width='132' height='142' rx='22'/></clipPath>
 </defs>
-<path d='M60 4 L112 22 L108 82 Q100 116 60 136 Q20 116 12 82 L8 22 Z' fill='url(#sh)' stroke='{colour}' stroke-width='4'/>
-{spots}
-<path d='M60 14 L102 29 L99 80 Q92 109 60 126 Q28 109 21 80 L18 29 Z' fill='none' stroke='#ffd23f' stroke-opacity='.35' stroke-width='1.5'/>
-<circle cx='60' cy='62' r='40' fill='url(#gl)'/>
-<polygon points='36,48 48,34 72,34 84,48 60,90' fill='url(#gm)' stroke='#ffffff' stroke-opacity='.7' stroke-width='1.5'/>
-<polygon points='36,48 84,48 60,90' fill='{dark}' fill-opacity='.45'/>
-<polygon points='48,34 54,48 66,48 72,34' fill='#ffffff' fill-opacity='.35'/>
-<path d='M36 48 L54 48 L60 90 M84 48 L66 48 L60 90 M54 48 L60 34 L66 48' stroke='#ffffff' stroke-opacity='.45' stroke-width='1' fill='none'/>
-<path d='M92 30 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 z' fill='#fff6c9'/>
-<path d='M26 92 l2 4 4 2 -4 2 -2 4 -2 -4 -4 -2 4 -2 z' fill='#fff6c9' fill-opacity='.8'/>
-<rect x='34' y='100' width='52' height='22' rx='11' fill='#170b2e' stroke='{colour}' stroke-width='2'/>
-<text x='60' y='116' text-anchor='middle' font-family='Arial Rounded MT Bold, Arial, sans-serif' font-weight='700' font-size='15' fill='#ffd23f'>{initial}</text>
+<rect x='4' y='4' width='132' height='142' rx='22' fill='url(#bg)'/>
+<g clip-path='url(#fr)'>
+ <path d='M40 84 Q8 70 12 34 Q28 50 42 48 Q36 66 52 76 Z' fill='{dark}' stroke='{colour}' stroke-width='1.5'/>
+ <path d='M100 84 Q132 70 128 34 Q112 50 98 48 Q104 66 88 76 Z' fill='{dark}' stroke='{colour}' stroke-width='1.5'/>
+ <path d='M22 44 L38 60 M118 44 L102 60' stroke='{colour}' stroke-opacity='.6' stroke-width='1.5'/>
+ <ellipse cx='70' cy='138' rx='40' ry='30' fill='{colour}'/>
+ <ellipse cx='70' cy='142' rx='21' ry='22' fill='{cream}' fill-opacity='.9'/>
+ <path d='M54 128 Q70 132 86 128 M52 138 Q70 142 88 138' stroke='{dark}' stroke-opacity='.35' stroke-width='1.5' fill='none'/>
+ <path d='M48 50 Q40 30 47 18 Q52 32 59 45 Z' fill='{cream}' stroke='{dark}' stroke-width='1'/>
+ <path d='M92 50 Q100 30 93 18 Q88 32 81 45 Z' fill='{cream}' stroke='{dark}' stroke-width='1'/>
+ <ellipse cx='70' cy='74' rx='37' ry='33' fill='{colour}'/>
+ <ellipse cx='70' cy='60' rx='22' ry='10' fill='#ffffff' fill-opacity='.12'/>
+ <ellipse cx='70' cy='89' rx='21' ry='14' fill='{light}'/>
+ <ellipse cx='64' cy='86' rx='2' ry='1.6' fill='{dark}'/>
+ <ellipse cx='76' cy='86' rx='2' ry='1.6' fill='{dark}'/>
+ <path d='M62 95 Q70 101 78 95' stroke='{ink}' stroke-width='2' fill='none' stroke-linecap='round'/>
+ <ellipse cx='56' cy='70' rx='8.5' ry='9.5' fill='#ffffff'/>
+ <ellipse cx='84' cy='70' rx='8.5' ry='9.5' fill='#ffffff'/>
+ <circle cx='57.5' cy='72' r='4.8' fill='{ink}'/>
+ <circle cx='82.5' cy='72' r='4.8' fill='{ink}'/>
+ <circle cx='59.5' cy='69.5' r='1.7' fill='#ffffff'/>
+ <circle cx='84.5' cy='69.5' r='1.7' fill='#ffffff'/>
+ <ellipse cx='44' cy='84' rx='5.5' ry='3.2' fill='#ff6f91' fill-opacity='.45'/>
+ <ellipse cx='96' cy='84' rx='5.5' ry='3.2' fill='#ff6f91' fill-opacity='.45'/>
+ {deco}
+ {shades}
+ <path d='M33 66 Q70 22 107 66' stroke='#2a2438' stroke-width='5' fill='none' stroke-linecap='round'/>
+ <rect x='26' y='60' width='13' height='20' rx='6' fill='#2a2438' stroke='{light}' stroke-width='1.5'/>
+ <rect x='101' y='60' width='13' height='20' rx='6' fill='#2a2438' stroke='{light}' stroke-width='1.5'/>
+ <path d='M32 78 Q36 99 56 99' stroke='#2a2438' stroke-width='3' fill='none' stroke-linecap='round'/>
+ <circle cx='58' cy='99' r='3.8' fill='#ffd23f' stroke='#2a2438' stroke-width='1'/>
+</g>
+<rect x='4' y='4' width='132' height='142' rx='22' fill='none' stroke='{colour}' stroke-width='3.5'/>
 </svg>"""
 
 
@@ -365,19 +409,19 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- 4. MASTER CONFIG, AVATARS & TIMEFRAMES ---
-# Operatives and their crest colours. To use your own pictures instead, replace an entry in
+# Operatives and their dragon colours. To use your own pictures instead, replace an entry in
 # AVATARS with an image link (e.g. "https://..."); everything else keeps working.
 OPERATIVES = [
-    # (dashboard name, crest colour, crest shade, pattern)
-    ("Sophie (Hunter)", "#ffb347", "#8a4a05", "spots"),
-    ("Bryan (Spyro)", "#b06cff", "#4a1d8a", None),
-    ("Jo (Zoe)", "#ff8fab", "#8a2346", None),
-    ("Amy (Bianca)", "#4cc9f0", "#155d7a", None),
-    ("Alisia (Sheila)", "#ff9f1c", "#8a4a05", None),
-    ("Victor (Agent 9)", "#7bd389", "#1f6b3a", None),
+    # (dashboard name, colour, extra detail on their dragon)
+    ("Sophie (Hunter)", "#ffb347", "spots"),
+    ("Bryan (Spyro)", "#ef5b5b", None),
+    ("Jo (Zoe)", "#ff8fab", "flower"),
+    ("Amy (Nestor)", "#4cc9f0", "star"),
+    ("Alisia (Elora)", "#2ec4b6", "bow"),
+    ("Victor (Magnus)", "#7bd389", "shades"),
 ]
-AVATARS = {name: svg_uri(gem_crest_svg(name[0], col, dark, pat)) for name, col, dark, pat in OPERATIVES}
-OPERATIVE_COLOURS = {name: col for name, col, _, _ in OPERATIVES}
+AVATARS = {name: svg_uri(dragon_portrait_svg(col, extra)) for name, col, extra in OPERATIVES}
+OPERATIVE_COLOURS = {name: col for name, col, _ in OPERATIVES}
 
 BOSS_IMG = svg_uri(boss_crystal_svg())
 BACKGROUND_IMG = svg_uri(BACKGROUND_HILLS_SVG)
@@ -411,9 +455,9 @@ SHIFT_WEIGHTS = {
     "Sophie (Hunter)": 1.0,
     "Bryan (Spyro)": 1.0,
     "Jo (Zoe)": 0.75,
-    "Amy (Bianca)": 1.0,
-    "Alisia (Sheila)": 1.0,
-    "Victor (Agent 9)": 0.28
+    "Amy (Nestor)": 1.0,
+    "Alisia (Elora)": 1.0,
+    "Victor (Magnus)": 0.28
 }
 
 TIME_SLOTS = [
@@ -450,7 +494,7 @@ REMOVED_FIELDS = ("avg_ans_time", "avg_call_time")
 HIST_FIELDS = ["in", "out", "open", "close", "ans", "awol", "lvl", "exp"]
 HIST_MAX_ENTRIES = 45
 
-LINE_COLORS = ["#ffb347", "#b06cff", "#ff8fab", "#4cc9f0", "#ff9f1c", "#7bd389"]  # matches each crest
+LINE_COLORS = ["#ffb347", "#ef5b5b", "#ff8fab", "#4cc9f0", "#2ec4b6", "#7bd389"]  # matches each dragon
 
 
 # --- 4. CORE ENGINE FUNCTIONS ---
@@ -1842,7 +1886,7 @@ with tab_party:
         res = get_stats(stats)
         with cols[i % 3]:
             with st.container(border=True):
-                st.markdown(f"<div class='crest'><img src='{AVATARS.get(name, '')}' alt='{html.escape(name)} crest'></div>",
+                st.markdown(f"<div class='crest'><img src='{AVATARS.get(name, '')}' alt='{html.escape(name)} dragon'></div>",
                             unsafe_allow_html=True)
                 st.markdown(f"### <center>{name}</center>", unsafe_allow_html=True)
 
